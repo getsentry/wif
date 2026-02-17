@@ -1,5 +1,5 @@
-import express, { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
+import express, { Request, Response } from "express";
 
 const app = express();
 
