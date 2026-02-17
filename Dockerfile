@@ -36,6 +36,9 @@ RUN pnpm install --frozen-lockfile --prod
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
 
+# Copy instrument.mjs for Sentry initialization
+COPY instrument.mjs ./
+
 # Expose port
 EXPOSE 3000
 
