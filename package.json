@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node --import=./instrument.mjs dist/index.js",
+    "start": "node --import=./instrument.mjs ./dist/index.js",
     "dev": "tsx watch src/index.ts"
   },
   "keywords": [],
@@ -15,7 +15,8 @@
     "@sentry/node": "^10.39.0",
     "@sentry/profiling-node": "^10.39.0",
     "dotenv": "^17.3.1",
-    "express": "^5.0.1"
+    "express": "^5.0.1",
+    "p-queue": "^9.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
