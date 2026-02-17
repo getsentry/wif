@@ -9,6 +9,7 @@ Sentry.init({
     // Profiling
     profilesSampleRate: 1.0,
     enableLogs: true,
-    integrations: [Sentry.consoleLoggingIntegration()]
+    integrations: [Sentry.consoleLoggingIntegration()],
+    // debug: true,
 });
   
