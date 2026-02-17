@@ -1,36 +1,34 @@
-import { types, webApi, type EnvelopedEvent } from "@slack/bolt";
-import { GithubClient } from "./github/index.js";
+import { types, webApi, type EnvelopedEvent } from '@slack/bolt';
+import { GithubClient } from './github/index.js';
 
 const defaultSlackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
 const defaultGithubClient = new GithubClient();
 
 export interface ProcessSlackWebhookOptions {
   slackClient?: webApi.WebClient;
-  githubClient?: Pick<GithubClient, "listOrgPublicRepos">;
+  githubClient?: Pick<GithubClient, 'listOrgPublicRepos'>;
 }
 
 // Worker function that processes the job
 export async function processSlackWebhook(
   data: EnvelopedEvent<types.SlackEvent>,
-  options?: ProcessSlackWebhookOptions,
+  options?: ProcessSlackWebhookOptions
 ): Promise<void> {
   const slackClient = options?.slackClient ?? defaultSlackClient;
   const githubClient = options?.githubClient ?? defaultGithubClient;
 
-  console.log("Worker is processing job with data:", data);
+  console.log('Worker is processing job with data:', data);
 
   try {
     // Extract event data from Slack webhook
-    if (data.event.type === "app_mention") {
+    if (data.event.type === 'app_mention') {
       const event = data.event;
 
       // Type guard to ensure we have the necessary properties
       const { channel, ts, thread_ts } = event;
 
-      const repos = await githubClient.listOrgPublicRepos("getsentry");
-      const repoList = repos
-        .map((r) => `- [${r.fullName}](${r.htmlUrl})`)
-        .join("\n");
+      const repos = await githubClient.listOrgPublicRepos('getsentry');
+      const repoList = repos.map((r) => `- [${r.fullName}](${r.htmlUrl})`).join('\n');
 
       await slackClient.chat.postMessage({
         channel,
@@ -38,12 +36,12 @@ export async function processSlackWebhook(
         markdown_text: `**Public repositories in getsentry** (${repos.length}):\n\n${repoList}`,
       });
 
-      console.log("Replied to Slack thread successfully");
+      console.log('Replied to Slack thread successfully');
     }
   } catch (error) {
-    console.error("Error replying to Slack:", error);
+    console.error('Error replying to Slack:', error);
     throw error;
   }
 
-  console.log("Worker is done processing job");
+  console.log('Worker is done processing job');
 }

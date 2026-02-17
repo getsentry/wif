@@ -1,0 +1,64 @@
+# Pre-commit hooks - run: pre-commit install && pre-commit install --hook-type commit-msg
+# Requires: pip install pre-commit (or brew install pre-commit)
+# See https://pre-commit.com for more information
+
+repos:
+  # Language-agnostic hooks (trailing whitespace, EOF, etc.)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Prettier - code formatting (runs project's pnpm prettier)
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: pnpm exec prettier --write
+        language: system
+        types: [javascript, ts, tsx, json, yaml, markdown]
+
+  # ESLint - linting (runs project's pnpm eslint)
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: pnpm exec eslint --fix
+        language: system
+        types: [javascript, ts, tsx]
+
+  # TypeScript - type check
+  - repo: local
+    hooks:
+      - id: tsc
+        name: tsc
+        entry: pnpm exec tsc --noEmit
+        language: system
+        pass_filenames: false
+
+  # Tests - run before commit
+  - repo: local
+    hooks:
+      - id: test
+        name: test
+        entry: pnpm test
+        language: system
+        pass_filenames: false
+
+  # Conventional commits - validates commit message format
+  - repo: local
+    hooks:
+      - id: commitlint
+        name: commitlint
+        entry: pnpm exec commitlint --edit
+        language: system
+        stages: [commit-msg]

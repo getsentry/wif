@@ -124,10 +124,19 @@ git log --follow new-name.ts  # Should show full history including old name
 - **Package manager:** Use `pnpm`, not npm. Run `pnpm add <package>` for dependencies.
 - **Development:** `pnpm dev` starts the live-reloading server (tsx watch).
 - **Testing:** `pnpm test` runs Vitest (unit + integration tests). Use `pnpm test:watch` for watch mode.
+- **Linting:** `pnpm lint` runs ESLint. Use `pnpm lint:fix` to auto-fix. `pnpm format` runs Prettier.
+- **Pre-commit:** Install [pre-commit](https://pre-commit.com/) (`pip install pre-commit` or `brew install pre-commit`), then run `pre-commit install && pre-commit install --hook-type commit-msg`. Hooks run Prettier, ESLint, TypeScript check, tests, and validate conventional commit messages.
 
 ## Verification Loop
 
-When iterating on changes (e.g., addressing review feedback, fixing bugs, or implementing features), include running tests in the verification loop. Before considering work complete, run `pnpm test` to ensure all unit and integration tests pass.
+When iterating on changes (e.g., addressing review feedback, fixing bugs, or implementing features), run these steps before considering work complete:
+
+1. **Build:** `pnpm build`
+2. **Test:** `pnpm test`
+3. **Lint:** `pnpm lint` (or `pnpm lint:fix` to auto-fix)
+4. **Format:** `pnpm format`
+
+**When committing:** Pre-commit hooks run the same checks. If the commit fails (e.g., Prettier or ESLint modified files), add the changed files and commit again: `git add -u && git commit -m "..."`. If it fails again after adding changes, investigate the failure—do not retry blindly.
 
 ## Slack Integration
 

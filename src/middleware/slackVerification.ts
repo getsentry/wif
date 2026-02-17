@@ -1,8 +1,8 @@
-import { verifySlackRequest } from "@slack/bolt";
-import type { Request } from "express";
-import { HttpError } from "../types.js";
+import { verifySlackRequest } from '@slack/bolt';
+import type { Request } from 'express';
+import { HttpError } from '../types.js';
 
-const SLACK_WEBHOOK_PATH = "/api/webhooks/slack";
+const SLACK_WEBHOOK_PATH = '/api/webhooks/slack';
 
 /**
  * Returns express.json verify callback that validates Slack request signatures
@@ -15,34 +15,34 @@ export function createSlackVerificationMiddleware(signingSecret: string | undefi
     }
 
     if (!signingSecret) {
-      throw new HttpError(401, "Missing Slack verification data");
+      throw new HttpError(401, 'Missing Slack verification data');
     }
 
-    const signature = req.headers["x-slack-signature"];
-    const timestamp = req.headers["x-slack-request-timestamp"];
-    const sig = typeof signature === "string" ? signature : signature?.[0];
-    const tsHeader = typeof timestamp === "string" ? timestamp : timestamp?.[0];
+    const signature = req.headers['x-slack-signature'];
+    const timestamp = req.headers['x-slack-request-timestamp'];
+    const sig = typeof signature === 'string' ? signature : signature?.[0];
+    const tsHeader = typeof timestamp === 'string' ? timestamp : timestamp?.[0];
 
     if (!sig || !tsHeader) {
-      throw new HttpError(401, "Missing Slack verification data");
+      throw new HttpError(401, 'Missing Slack verification data');
     }
 
     const timestampNum = parseInt(tsHeader, 10);
     if (isNaN(timestampNum)) {
-      throw new HttpError(401, "Invalid Slack request timestamp");
+      throw new HttpError(401, 'Invalid Slack request timestamp');
     }
 
     try {
       verifySlackRequest({
         signingSecret,
-        body: buf.toString("utf8"),
+        body: buf.toString('utf8'),
         headers: {
-          "x-slack-signature": sig,
-          "x-slack-request-timestamp": timestampNum,
+          'x-slack-signature': sig,
+          'x-slack-request-timestamp': timestampNum,
         },
       });
     } catch {
-      throw new HttpError(401, "Slack signature verification failed");
+      throw new HttpError(401, 'Slack signature verification failed');
     }
   };
 }

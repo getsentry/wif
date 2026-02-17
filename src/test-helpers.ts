@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from 'crypto';
 
 /**
  * Generates a valid Slack request signature for integration tests.
@@ -7,11 +7,11 @@ import crypto from "crypto";
 export function signSlackRequest(
   signingSecret: string,
   body: string,
-  timestamp: string = Math.floor(Date.now() / 1000).toString(),
+  timestamp: string = Math.floor(Date.now() / 1000).toString()
 ): string {
   const sigBasestring = `v0:${timestamp}:${body}`;
-  const hmac = crypto.createHmac("sha256", signingSecret);
+  const hmac = crypto.createHmac('sha256', signingSecret);
   hmac.update(sigBasestring);
-  const digest = hmac.digest("hex");
+  const digest = hmac.digest('hex');
   return `v0=${digest}`;
 }

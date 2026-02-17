@@ -21,16 +21,19 @@ Edit `.env` and add your Sentry DSN (get it from https://sentry.io)
 ## Running the Application
 
 ### Development mode (with auto-restart)
+
 ```bash
 pnpm dev
 ```
 
 ### Build for production
+
 ```bash
 pnpm build
 ```
 
 ### Production mode
+
 ```bash
 pnpm start
 ```
@@ -40,16 +43,19 @@ The server will start on `http://localhost:3000` by default.
 ## Docker
 
 ### Build Docker image
+
 ```bash
 docker build -t wif-app .
 ```
 
 ### Run Docker container
+
 ```bash
 docker run -p 3000:3000 wif-app
 ```
 
 ### Run with custom port
+
 ```bash
 docker run -p 8080:8080 -e PORT=8080 wif-app
 ```
