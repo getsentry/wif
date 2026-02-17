@@ -1,0 +1,9 @@
+node_modules
+dist
+npm-debug.log
+.env
+.DS_Store
+.git
+.gitignore
+README.md
+package-lock.json

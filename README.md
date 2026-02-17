@@ -7,27 +7,44 @@ Express 5 application with Slack webhook endpoint built with TypeScript.
 Install dependencies:
 
 ```bash
-npm install
+pnpm install
 ```
 
 ## Running the Application
 
 ### Development mode (with auto-restart)
 ```bash
-npm run dev
+pnpm dev
 ```
 
 ### Build for production
 ```bash
-npm run build
+pnpm build
 ```
 
 ### Production mode
 ```bash
-npm start
+pnpm start
 ```
 
 The server will start on `http://localhost:3000` by default.
+
+## Docker
+
+### Build Docker image
+```bash
+docker build -t wif-app .
+```
+
+### Run Docker container
+```bash
+docker run -p 3000:3000 wif-app
+```
+
+### Run with custom port
+```bash
+docker run -p 8080:8080 -e PORT=8080 wif-app
+```
 
 ## Endpoints
 
