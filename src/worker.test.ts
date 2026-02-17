@@ -40,6 +40,9 @@ describe('processSlackWebhook', () => {
       chat: {
         postMessage: vi.fn().mockResolvedValue({ ok: true }),
       },
+      reactions: {
+        add: vi.fn().mockResolvedValue({ ok: true }),
+      },
     };
     const mockGithubClient = {
       listOrgPublicRepos: vi.fn().mockResolvedValue(mockRepos),
@@ -59,6 +62,11 @@ describe('processSlackWebhook', () => {
       githubClient: mockGithubClient,
     });
 
+    expect(mockSlackClient.reactions.add).toHaveBeenCalledWith({
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'eyes',
+    });
     expect(mockGithubClient.listOrgPublicRepos).toHaveBeenCalledWith('getsentry');
     expect(mockSlackClient.chat.postMessage).toHaveBeenCalledWith({
       channel: 'C123',

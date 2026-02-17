@@ -28,6 +28,12 @@ export async function processSlackWebhook(
       // Type guard to ensure we have the necessary properties
       const { channel, ts, thread_ts } = event;
 
+      await slackClient.reactions.add({
+        channel,
+        timestamp: ts,
+        name: 'eyes',
+      });
+
       const repos = await githubClient.listOrgPublicRepos('getsentry');
       const repoList = repos
         .map((r) => `- [${r.fullName}](${r.htmlUrl})`)
