@@ -29,7 +29,10 @@ export async function processSlackWebhook(
       const { channel, ts, thread_ts } = event;
 
       const repos = await githubClient.listOrgPublicRepos('getsentry');
-      const repoList = repos.map((r) => `- [${r.fullName}](${r.htmlUrl})`).join('\n');
+      const repoList = repos
+        .map((r) => `- [${r.fullName}](${r.htmlUrl})`)
+        .slice(0, 10)
+        .join('\n');
 
       await slackClient.chat.postMessage({
         channel,
