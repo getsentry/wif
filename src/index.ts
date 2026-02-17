@@ -31,8 +31,9 @@ app.post("/api/webhooks/slack", (req: Request, res: Response) => {
     return res.status(200).json({ challenge: body.challenge });
   }
 
+  // At this point, we know it's an EnvelopedEvent
   queue
-    .add(() => processSlackWebhook(req.body))
+    .add(() => processSlackWebhook(body))
     .catch((reason) => {
       console.error("Error processing job:", reason);
       Sentry.captureException(reason);

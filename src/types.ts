@@ -1,3 +1,5 @@
+import { types, type EnvelopedEvent } from "@slack/bolt";
+
 /** User/client error - return 4xx, do not report to Sentry */
 export class HttpError extends Error {
   constructor(
@@ -16,9 +18,7 @@ export interface SlackUrlVerification {
   token?: string;
 }
 
-/** Slack webhook request body (union of event types) */
-export interface SlackWebhookBody {
-  type?: string;
-  challenge?: string;
-  [key: string]: unknown;
-}
+/** Slack webhook request body (union of url_verification and event callback) */
+export type SlackWebhookBody =
+  | SlackUrlVerification
+  | EnvelopedEvent<types.SlackEvent>;
