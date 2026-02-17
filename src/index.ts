@@ -18,7 +18,12 @@ app.use(express.json());
 app.post("/api/webhooks/slack", (req: Request, res: Response) => {
   // Enqueue the job
   console.log("Enqueuing job with data:", req.body);
-  queue.add(() => processSlackWebhook(req.body));
+  queue
+    .add(() => processSlackWebhook(req.body))
+    .catch((reason) => {
+      console.error("Error processing job:", reason);
+      Sentry.captureException(reason);
+    });
 
   // Respond immediately
   res.status(200).send("OK");
