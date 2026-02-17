@@ -42,6 +42,7 @@ describe('processSlackWebhook', () => {
       },
       reactions: {
         add: vi.fn().mockResolvedValue({ ok: true }),
+        remove: vi.fn().mockResolvedValue({ ok: true }),
       },
     };
     const mockGithubClient = {
@@ -62,10 +63,20 @@ describe('processSlackWebhook', () => {
       githubClient: mockGithubClient,
     });
 
-    expect(mockSlackClient.reactions.add).toHaveBeenCalledWith({
+    expect(mockSlackClient.reactions.add).toHaveBeenNthCalledWith(1, {
       channel: 'C123',
       timestamp: '1234567890.123456',
       name: 'eyes',
+    });
+    expect(mockSlackClient.reactions.remove).toHaveBeenCalledWith({
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'eyes',
+    });
+    expect(mockSlackClient.reactions.add).toHaveBeenNthCalledWith(2, {
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'white_check_mark',
     });
     expect(mockGithubClient.listOrgPublicRepos).toHaveBeenCalledWith('getsentry');
     expect(mockSlackClient.chat.postMessage).toHaveBeenCalledWith({
@@ -75,6 +86,58 @@ describe('processSlackWebhook', () => {
         '**Public repositories in getsentry** (2):\n\n' +
         '- [getsentry/sentry](https://github.com/getsentry/sentry)\n' +
         '- [getsentry/wif](https://github.com/getsentry/wif)',
+    });
+  });
+
+  it('replaces eyes with x and posts error on failure', async () => {
+    const mockSlackClient = {
+      chat: {
+        postMessage: vi.fn().mockResolvedValue({ ok: true }),
+      },
+      reactions: {
+        add: vi.fn().mockResolvedValue({ ok: true }),
+        remove: vi.fn().mockResolvedValue({ ok: true }),
+      },
+    };
+    const mockGithubClient = {
+      listOrgPublicRepos: vi.fn().mockRejectedValue(new Error('GitHub API failed')),
+    };
+
+    const data = {
+      event: {
+        type: 'app_mention',
+        channel: 'C123',
+        ts: '1234567890.123456',
+        thread_ts: '1234567890.123400',
+      },
+    };
+
+    await expect(
+      processSlackWebhook(data as never, {
+        slackClient: mockSlackClient as never,
+        githubClient: mockGithubClient,
+      })
+    ).rejects.toThrow('GitHub API failed');
+
+    expect(mockSlackClient.reactions.add).toHaveBeenNthCalledWith(1, {
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'eyes',
+    });
+    expect(mockSlackClient.reactions.remove).toHaveBeenCalledWith({
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'eyes',
+    });
+    expect(mockSlackClient.reactions.add).toHaveBeenNthCalledWith(2, {
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'x',
+    });
+    expect(mockSlackClient.chat.postMessage).toHaveBeenCalledWith({
+      channel: 'C123',
+      thread_ts: '1234567890.123400',
+      markdown_text: 'Something went wrong: GitHub API failed',
     });
   });
 });
