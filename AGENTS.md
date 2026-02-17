@@ -123,6 +123,11 @@ git log --follow new-name.ts  # Should show full history including old name
 
 - **Package manager:** Use `pnpm`, not npm. Run `pnpm add <package>` for dependencies.
 - **Development:** `pnpm dev` starts the live-reloading server (tsx watch).
+- **Testing:** `pnpm test` runs Vitest (unit + integration tests). Use `pnpm test:watch` for watch mode.
+
+## Verification Loop
+
+When iterating on changes (e.g., addressing review feedback, fixing bugs, or implementing features), include running tests in the verification loop. Before considering work complete, run `pnpm test` to ensure all unit and integration tests pass.
 
 ## Slack Integration
 
@@ -138,6 +143,7 @@ git log --follow new-name.ts  # Should show full history including old name
 
 ## Project Structure
 
+- **`src/app.ts`:** Express app factory (`createApp`) used by server and integration tests.
 - **`src/types.ts`:** Shared types and custom error classes (e.g., `HttpError`, `SlackWebhookBody`).
 - **`src/middleware/`:** Middleware modules (e.g., `slackVerification.ts`, `errorHandler.ts`).
 - **`src/middleware/index.ts`:** Barrel file exporting middleware for clean imports.
