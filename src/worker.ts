@@ -1,5 +1,6 @@
-import { types, webApi, type EnvelopedEvent } from '@slack/bolt';
 import { GithubClient } from './github/index.js';
+import { types, webApi, type EnvelopedEvent } from '@slack/bolt';
+import { analyzeIssue } from './analysis/analyze.js';
 
 const defaultSlackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
 const defaultGithubClient = new GithubClient();
@@ -34,6 +35,22 @@ export async function processSlackWebhook(
         channel,
         thread_ts: thread_ts ?? ts,
         markdown_text: `**Public repositories in getsentry** (${repos.length}):\n\n${repoList}`,
+      });
+
+      const issueResult = await analyzeIssue(event.text);
+
+      // Format the result for Slack
+      const responseText =
+        `*Repository Analysis*\n\n` +
+        `*Repository:* ${issueResult.owner}/${issueResult.repo}\n` +
+        `*Confidence:* ${issueResult.confidence}\n` +
+        `*Reasoning:* ${issueResult.reasoning}`;
+
+      // Reply in the thread (or start a new thread if not already in one)
+      await slackClient.chat.postMessage({
+        channel,
+        thread_ts: thread_ts || ts, // Use thread_ts if exists, otherwise use ts to start new thread
+        text: responseText,
       });
 
       console.log('Replied to Slack thread successfully');

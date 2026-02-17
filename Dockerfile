@@ -15,6 +15,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY tsconfig.json ./
 COPY src ./src
+COPY prompts ./prompts
 
 # Build TypeScript
 RUN pnpm run build
@@ -35,6 +36,9 @@ RUN pnpm install --frozen-lockfile --prod
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
+
+# Copy prompts directory for runtime access
+COPY prompts ./prompts
 
 # Copy instrument.mjs for Sentry initialization
 COPY instrument.mjs ./
