@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { processSlackWebhook } from './worker.js';
+import * as analyzeModule from './analysis/analyze.js';
 
 describe('processSlackWebhook', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(analyzeModule, 'analyzeIssue').mockResolvedValue({
+      owner: 'getsentry',
+      repo: 'sentry',
+      confidence: 'high',
+      reasoning: 'Test reasoning',
+    });
   });
 
   it('resolves without error for non-app_mention events', async () => {

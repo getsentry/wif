@@ -1,6 +1,17 @@
 import { Octokit } from '@octokit/rest';
+import { createAppAuth } from '@octokit/auth-app';
 import * as Sentry from '@sentry/node';
 import { SemVer, parse as semverParse } from 'semver';
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const DEFAULT_APP_ID = '2884252';
+const DEFAULT_INSTALLATION_ID = '110672284';
+
+const PRIVATE_KEY_PATHS = [
+  '/run/secrets/github-app-private-key',
+  resolve(process.cwd(), 'secrets', 'github-app-private-key'),
+];
 
 // Type definitions for GitHub API responses
 export interface GitHubCommit {
@@ -31,16 +42,64 @@ export interface GitHubRelease {
   body: string | null | undefined;
 }
 
-export class GitHubService {
-  private octokit: Octokit;
+export interface Repository {
+  name: string;
+  fullName: string;
+  htmlUrl: string;
+}
 
-  constructor(token: string) {
-    this.octokit = new Octokit({
-      auth: token,
-      request: {
-        retryAfter: 3, // Retry after 3 seconds on rate limit
-      },
+export class GitHubService {
+  private octokit: Octokit | null = null;
+  private readonly appId: string;
+  private readonly installationId: string;
+
+  constructor(options?: { appId?: string; installationId?: string }) {
+    this.appId = options?.appId ?? process.env.GITHUB_APP_ID ?? DEFAULT_APP_ID;
+    this.installationId =
+      options?.installationId ?? process.env.GITHUB_INSTALLATION_ID ?? DEFAULT_INSTALLATION_ID;
+  }
+
+  private loadPrivateKey(): string {
+    for (const path of PRIVATE_KEY_PATHS) {
+      if (existsSync(path)) {
+        return readFileSync(path, 'utf-8');
+      }
+    }
+    throw new Error(`GitHub App private key not found. Tried: ${PRIVATE_KEY_PATHS.join(', ')}`);
+  }
+
+  private getOctokit(): Octokit {
+    if (!this.octokit) {
+      const privateKey = this.loadPrivateKey();
+      this.octokit = new Octokit({
+        authStrategy: createAppAuth,
+        auth: {
+          appId: this.appId,
+          privateKey,
+          installationId: this.installationId,
+        },
+        request: {
+          retryAfter: 3, // Retry after 3 seconds on rate limit
+        },
+      });
+    }
+    return this.octokit;
+  }
+
+  async listOrgPublicRepos(org: string): Promise<Repository[]> {
+    const octokit = this.getOctokit();
+    const repos = await octokit.paginate(octokit.rest.repos.listForOrg, {
+      org,
+      type: 'public',
+      per_page: 100,
     });
+    return repos.map(
+      (r: { name: string; full_name?: string; html_url?: string; owner?: { login?: string } }) => ({
+        name: r.name,
+        fullName: r.full_name ?? `${r.owner?.login}/${r.name}`,
+        htmlUrl: r.html_url ?? `https://github.com/${r.full_name ?? r.name}`,
+      })
+    );
   }
 
   /**
@@ -72,19 +131,20 @@ export class GitHubService {
    */
   private async getVersionDate(owner: string, repoName: string, version: string): Promise<string> {
     try {
+      const octokit = this.getOctokit();
       // Try different tag formats that repos commonly use
       const tagFormats = [version, `v${version}`, version.replace(/^v/, '')];
 
       for (const tagFormat of tagFormats) {
         try {
-          const tagResponse = await this.octokit.git.getRef({
+          const tagResponse = await octokit.git.getRef({
             owner,
             repo: repoName,
             ref: `tags/${tagFormat}`,
           });
 
           // Get the commit details to extract the date
-          const commitResponse = await this.octokit.git.getCommit({
+          const commitResponse = await octokit.git.getCommit({
             owner,
             repo: repoName,
             commit_sha: tagResponse.data.object.sha,
@@ -208,8 +268,9 @@ export class GitHubService {
    */
   async getPullRequest(repo: string, prNumber: number): Promise<GitHubPullRequest | null> {
     try {
+      const octokit = this.getOctokit();
       const [owner, repoName] = repo.split('/');
-      const { data } = await this.octokit.pulls.get({
+      const { data } = await octokit.pulls.get({
         owner,
         repo: repoName,
         pull_number: prNumber,
@@ -270,7 +331,8 @@ export class GitHubService {
     limit: number;
     resetTime: Date;
   }> {
-    const { data } = await this.octokit.rateLimit.get();
+    const octokit = this.getOctokit();
+    const { data } = await octokit.rateLimit.get();
     return {
       remaining: data.rate.remaining,
       limit: data.rate.limit,
@@ -280,6 +342,7 @@ export class GitHubService {
 
   async findAllReleases(repo: string): Promise<GitHubRelease[]> {
     return await Sentry.startSpan({ name: 'findAllReleases', attributes: { repo } }, async () => {
+      const octokit = this.getOctokit();
       const [owner, repoName] = repo.split('/');
       const allReleases: GitHubRelease[] = [];
       let page = 1;
@@ -289,7 +352,7 @@ export class GitHubService {
         const { data } = await Sentry.startSpan(
           { name: 'listReleases', attributes: { page, perPage } },
           () =>
-            this.octokit.repos.listReleases({
+            octokit.repos.listReleases({
               owner,
               repo: repoName,
               per_page: perPage,

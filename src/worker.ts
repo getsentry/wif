@@ -1,13 +1,13 @@
-import { GithubClient } from './github/index.js';
+import { GitHubService } from './analysis/github.js';
 import { types, webApi, type EnvelopedEvent } from '@slack/bolt';
 import { analyzeIssue } from './analysis/analyze.js';
 
 const defaultSlackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
-const defaultGithubClient = new GithubClient();
+const defaultGithubClient = new GitHubService();
 
 export interface ProcessSlackWebhookOptions {
   slackClient?: webApi.WebClient;
-  githubClient?: Pick<GithubClient, 'listOrgPublicRepos'>;
+  githubClient?: Pick<GitHubService, 'listOrgPublicRepos'>;
 }
 
 // Worker function that processes the job
