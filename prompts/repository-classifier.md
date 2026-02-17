@@ -20,4 +20,12 @@ Analyze the issue description and determine the most appropriate repository base
 3. Feature requests or bug descriptions
 4. Keywords and context clues
 
-Provide the repository owner, name, your confidence level, and reasoning for your choice.
+Additionally, extract the SDK version if it is mentioned in the issue description. Look for version numbers in formats like:
+
+- "@sentry/node@8.1.0"
+- "sentry-sdk 1.45.0"
+- "version 7.x"
+- "v8.2.1"
+- Any other version format (e.g., 1.2.3, 8.x, 7.0.0-beta.1)
+
+Provide the repository owner, name, your confidence level, reasoning for your choice, and the SDK version if found.

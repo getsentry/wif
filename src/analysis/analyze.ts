@@ -12,6 +12,10 @@ const repoAnalysisSchema = z.object({
     .enum(['high', 'medium', 'low'])
     .describe('Confidence level of the repository match'),
   reasoning: z.string().describe('Explanation of why this repository was chosen'),
+  sdkVersion: z
+    .string()
+    .optional()
+    .describe('The SDK version mentioned in the issue description, if any'),
 });
 
 export type Result = z.infer<typeof repoAnalysisSchema>;
