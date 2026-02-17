@@ -134,6 +134,13 @@ When iterating on changes (e.g., addressing review feedback, fixing bugs, or imp
 - **Use the SDK:** Prefer [@slack/bolt](https://docs.slack.dev/tools/node-slack-sdk/) and its methods over manual implementations. For example, use `verifySlackRequest` from `@slack/bolt` for request signature verification instead of implementing HMAC-SHA256 yourself.
 - **Signing Secret vs OAuth token:** `SLACK_SIGNING_SECRET` is used to verify incoming webhook requests. `SLACK_OAUTH_TOKEN` is for outbound API calls. Do not confuse them.
 - **url_verification:** When Slack sends a `url_verification` event (during Events API URL setup), respond with `res.status(200).json({ challenge: body.challenge })`.
+- **Rich markdown:** Use `markdown_text` (not `text`) in `chat.postMessage` for rich formatting. Supports `**bold**`, `[link text](url)`, and `-` for lists. Do not use template literals with leading indentation—whitespace is included in the message. Use `ChannelAndMarkdownText` type; do not combine with `blocks` or `text`.
+
+## GitHub Integration
+
+- **GitHub App auth:** Use [octokit](https://github.com/octokit/octokit.js) with `@octokit/auth-app` for GitHub App authentication. Use `createAppAuth` with `appId`, `privateKey`, and `installationId`.
+- **Private key loading:** Try `/run/secrets/github-app-private-key` first (production), then `./secrets/github-app-private-key` (local). Add `secrets/` to `.gitignore`.
+- **Environment variables:** `GITHUB_APP_ID` and `GITHUB_INSTALLATION_ID` override defaults. Document optional vars in `.env.example`.
 
 ## Error Handling
 
@@ -147,6 +154,12 @@ When iterating on changes (e.g., addressing review feedback, fixing bugs, or imp
 - **`src/types.ts`:** Shared types and custom error classes (e.g., `HttpError`, `SlackWebhookBody`).
 - **`src/middleware/`:** Middleware modules (e.g., `slackVerification.ts`, `errorHandler.ts`).
 - **`src/middleware/index.ts`:** Barrel file exporting middleware for clean imports.
+- **`src/github/`:** GitHub integration. Use OOP: `GithubClient` class, `types.ts` for interfaces, `index.ts` barrel export. Keep a clean file hierarchy for external service clients.
+
+## Testability
+
+- **Dependency injection:** For functions that call external services (Slack, GitHub), accept optional overrides as a second parameter. Use `Pick<ClientClass, "methodName">` for minimal mock types. Default to module-level singletons when no overrides provided.
+- **Mocking external clients:** When testing flows that hit Slack or GitHub, inject mock clients with `vi.fn()` to avoid real API calls. Assert on method calls and arguments.
 
 ## Git Rebase
 
