@@ -10,6 +10,14 @@ Install dependencies:
 pnpm install
 ```
 
+Copy the environment variables template:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and add your Sentry DSN (get it from https://sentry.io)
+
 ## Running the Application
 
 ### Development mode (with auto-restart)
@@ -54,6 +62,16 @@ docker run -p 8080:8080 -e PORT=8080 wif-app
 ## Environment Variables
 
 - `PORT` - Server port (default: 3000)
+- `NODE_ENV` - Environment name (default: development)
+- `SENTRY_DSN` - Sentry Data Source Name for error tracking (optional)
+
+## Features
+
+- **Express 5** - Latest version of Express framework
+- **TypeScript** - Full type safety
+- **Sentry** - Error tracking and performance monitoring
+- **Docker** - Containerized deployment
+- **pnpm** - Fast, efficient package management
 
 ## Project Structure
 

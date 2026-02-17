@@ -5,13 +5,15 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node --import=./instrument.mjs dist/index.js",
     "dev": "tsx watch src/index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@sentry/node": "^10.39.0",
+    "@sentry/profiling-node": "^10.39.0",
     "express": "^5.0.1"
   },
   "devDependencies": {
