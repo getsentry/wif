@@ -118,3 +118,33 @@ After renaming, verify that git recognizes the rename:
 git status  # Should show "renamed: old-name.ts -> new-name.ts"
 git log --follow new-name.ts  # Should show full history including old name
 ```
+
+## Project Setup
+
+- **Package manager:** Use `pnpm`, not npm. Run `pnpm add <package>` for dependencies.
+- **Development:** `pnpm dev` starts the live-reloading server (tsx watch).
+
+## Slack Integration
+
+- **Use the SDK:** Prefer [@slack/bolt](https://docs.slack.dev/tools/node-slack-sdk/) and its methods over manual implementations. For example, use `verifySlackRequest` from `@slack/bolt` for request signature verification instead of implementing HMAC-SHA256 yourself.
+- **Signing Secret vs OAuth token:** `SLACK_SIGNING_SECRET` is used to verify incoming webhook requests. `SLACK_OAUTH_TOKEN` is for outbound API calls. Do not confuse them.
+- **url_verification:** When Slack sends a `url_verification` event (during Events API URL setup), respond with `res.status(200).json({ challenge: body.challenge })`.
+
+## Error Handling
+
+- **4xx (user/client errors):** Use the `HttpError` class. These should not be reported to Sentry.
+- **5xx (server errors):** Let unhandled errors propagate to Sentry's `setupExpressErrorHandler`.
+- **Middleware order:** Register the `httpErrorHandler` middleware before `Sentry.setupExpressErrorHandler` so 4xx responses are sent without Sentry reporting.
+
+## Project Structure
+
+- **`src/types.ts`:** Shared types and custom error classes (e.g., `HttpError`, `SlackWebhookBody`).
+- **`src/middleware/`:** Middleware modules (e.g., `slackVerification.ts`, `errorHandler.ts`).
+- **`src/middleware/index.ts`:** Barrel file exporting middleware for clean imports.
+
+## Git Rebase
+
+When resolving merge conflicts during `git pull --rebase`:
+
+- **pnpm-lock.yaml conflicts:** Run `git checkout --ours pnpm-lock.yaml` then `pnpm install --no-frozen-lockfile` to regenerate the lockfile.
+- **Non-interactive rebase continue:** Use `GIT_EDITOR=true git rebase --continue` when the terminal has no editor configured.
