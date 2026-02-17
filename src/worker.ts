@@ -1,11 +1,22 @@
 import { types, webApi, type EnvelopedEvent } from "@slack/bolt";
+import { GithubClient } from "./github/index.js";
 
-const slackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
+const defaultSlackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
+const defaultGithubClient = new GithubClient();
+
+export interface ProcessSlackWebhookOptions {
+  slackClient?: webApi.WebClient;
+  githubClient?: Pick<GithubClient, "listOrgPublicRepos">;
+}
 
 // Worker function that processes the job
 export async function processSlackWebhook(
-  data: EnvelopedEvent<types.SlackEvent>
+  data: EnvelopedEvent<types.SlackEvent>,
+  options?: ProcessSlackWebhookOptions,
 ): Promise<void> {
+  const slackClient = options?.slackClient ?? defaultSlackClient;
+  const githubClient = options?.githubClient ?? defaultGithubClient;
+
   console.log("Worker is processing job with data:", data);
 
   try {
@@ -16,11 +27,15 @@ export async function processSlackWebhook(
       // Type guard to ensure we have the necessary properties
       const { channel, ts, thread_ts } = event;
 
-      // Reply in the thread (or start a new thread if not already in one)
+      const repos = await githubClient.listOrgPublicRepos("getsentry");
+      const repoList = repos
+        .map((r) => `- [${r.fullName}](${r.htmlUrl})`)
+        .join("\n");
+
       await slackClient.chat.postMessage({
         channel,
-        thread_ts: thread_ts || ts, // Use thread_ts if exists, otherwise use ts to start new thread
-        text: "received messages",
+        thread_ts: thread_ts ?? ts,
+        markdown_text: `**Public repositories in getsentry** (${repos.length}):\n\n${repoList}`,
       });
 
       console.log("Replied to Slack thread successfully");
