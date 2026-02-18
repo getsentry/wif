@@ -1,14 +1,17 @@
 import { types, webApi, type EnvelopedEvent } from '@slack/bolt';
 import { analyzeIssue } from './analysis/analyze.js';
+import { createAnalysisTools } from './analysis/tools/index.js';
+import { createAnalysisSubtasks } from './analysis/subtasks/index.js';
+import { GitHubService } from './analysis/github.js';
 import { withReactionFeedback } from './slack/index.js';
 
 const defaultSlackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
+const defaultGitHubService = new GitHubService();
 
 export interface ProcessSlackWebhookOptions {
   slackClient?: webApi.WebClient;
 }
 
-// Worker function that processes the job
 export async function processSlackWebhook(
   data: EnvelopedEvent<types.SlackEvent>,
   options?: ProcessSlackWebhookOptions
@@ -22,20 +25,13 @@ export async function processSlackWebhook(
     const { channel, ts, thread_ts } = event;
 
     await withReactionFeedback({ slackClient, channel, ts, threadTs: thread_ts }, async () => {
-      const issueResult = await analyzeIssue(event.text);
+      const tools = createAnalysisTools(
+        { slackClient, channel, threadTs: thread_ts ?? ts },
+        defaultGitHubService
+      );
+      const subtasks = createAnalysisSubtasks(tools);
 
-      const responseText =
-        `*Repository Analysis*\n\n` +
-        `*Repository:* ${issueResult.owner}/${issueResult.repo}\n` +
-        `*Confidence:* ${issueResult.confidence}\n` +
-        (issueResult.sdkVersion ? `*SDK Version:* ${issueResult.sdkVersion}\n` : '') +
-        `*Reasoning:* ${issueResult.reasoning}`;
-
-      await slackClient.chat.postMessage({
-        channel,
-        thread_ts: thread_ts ?? ts,
-        text: responseText,
-      });
+      await analyzeIssue(event.text, tools, subtasks);
 
       console.log('Replied to Slack thread successfully');
     });

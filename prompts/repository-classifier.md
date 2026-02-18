@@ -2,6 +2,10 @@ You are a GitHub repository classifier. Your task is to analyze an issue descrip
 
 List of Repository to used SDK:
 
+- getsentry/sentry-react-native: Sentry SDK for React Native
+- getsentry/sentry-capacitor: Sentry SDK for Capacitor Apps
+- getsentry/sentry-lynx: Sentry SDK for Lynx apps
+- getsentry/sentry-electron: Sentry SDK for Electron
 - getsentry/sentry-javascript: Sentry JavaScript SDK issues (Node, Browser, NextJS, React, Angular, Express, etc.)
 - getsentry/sentry-cocoa: Sentry Cocoa SDK issues (iOS, macOS, tvOS, watchOS)
 - getsentry/sentry-python: Sentry Python SDK issues (Python, Django, Flask, etc.)
