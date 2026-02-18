@@ -17,14 +17,9 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY prompts ./prompts
 
-# Symlink the Northflank-mounted secret so Sentry CLI can find it
-RUN if [ -f /secrets/.sentryclirc ]; \
-    then ln -sf /secrets/.sentryclirc ~/.sentryclirc; \
-    else echo "Warning: No .sentryclirc found in /secrets"; \
-    fi
-
-# Build TypeScript
-RUN pnpm run build
+# Build TypeScript (Sentry sourcemap upload uses the mounted secret)
+RUN --mount=type=secret,id=sentryclirc,target=/root/.sentryclirc \
+    pnpm run build
 
 # Production stage
 FROM node:20-alpine
