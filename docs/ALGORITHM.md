@@ -208,18 +208,25 @@ Checked: releases <first>–<last> in <repo>.
 
 `<first>`–`<last>` MUST reflect the **actual** range scanned. When the agent exits early after finding a high-confidence fix, `<last>` is the version where the fix was found, not the latest release in the fetched range. "Relevant PRs evaluated" is shown only when **more than one** PR was evaluated; omit it when there is a single PR.
 
-### Medium confidence
+### Medium confidence (fallback when no high-confidence match)
 
-The agent MUST report with a caveat and defer for confirmation. Use **bold** for the version and `[PR #N](url)` for the link.
+When no high-confidence PR is found but at least one medium-confidence candidate exists, the agent MUST report the **top 3** medium-confidence releases or PRs as potential candidates. This fallback helps when WIF is unsure.
+
+The agent MUST list up to 3 candidates (oldest first, as encountered during the scan). Use **bold** for versions and `[PR #N](url)` for links.
 
 ```
-**v<version>** includes changes that may address this ([PR #N](url)),
-but I'm not fully certain. Deferring to SDK maintainers to confirm.
+I'm not fully certain, but here are potential candidates:
+
+1. **v<version1>** — [PR #N1](url)
+2. **v<version2>** — [PR #N2](url)
+3. **v<version3>** — [PR #N3](url)
+
+Deferring to SDK maintainers to confirm.
 
 Checked: releases <first>–<last> in <repo>.
 ```
 
-"Relevant PRs evaluated" is shown only when more than one PR was evaluated.
+If fewer than 3 candidates exist, list only those found. "Relevant PRs evaluated" is shown only when more than one PR was evaluated.
 
 ### No result
 

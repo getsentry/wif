@@ -177,7 +177,7 @@ export async function analyzeIssue(
         result.kind === 'high_confidence'
           ? [prLinkMarkdown(repo, result.prNumber)]
           : result.kind === 'medium_confidence'
-            ? result.candidates.map((c) => prLinkMarkdown(repo, c.prNumber))
+            ? result.candidates.slice(0, 3).map((c) => prLinkMarkdown(repo, c.prNumber))
             : [],
       skippedSteps,
     },
@@ -261,10 +261,15 @@ async function postResult(
       break;
     }
     case 'medium_confidence': {
-      const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
+      const topCandidates = result.candidates.slice(0, 3);
+      const candidateLines = topCandidates.map(
+        (c, i) =>
+          `${i + 1}. **v${normalizeVersion(c.version)}** — ${ctx.repo ? prLinkMarkdown(ctx.repo, c.prNumber) : c.prLink}`
+      );
       responseText =
-        `**v${normalizeVersion(result.version)}** includes changes that may address this (${prMd}), ` +
-        `but I'm not fully certain. Deferring to SDK maintainers to confirm.\n\n` +
+        `I'm not fully certain, but here are potential candidates:\n\n` +
+        candidateLines.join('\n') +
+        `\n\nDeferring to SDK maintainers to confirm.\n\n` +
         trace;
       break;
     }
