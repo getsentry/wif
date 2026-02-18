@@ -276,9 +276,13 @@ When adding a new subtask or tool:
 4. Export via the barrel `index.ts`.
 5. Wire it into the workflow in `analyze.ts`.
 
+### Keeping README in Sync
+
+When `docs/ALGORITHM.md` changes in a way that affects the high-level workflow (e.g., subtasks added/removed/reordered, confidence levels changed, new output formats), update the corresponding sections in `README.md` — specifically the "How It Works" Mermaid diagram, the "Confidence Levels" table, and the numbered step list under "What is WIF?".
+
 ### Formatting After Documentation Changes
 
-Always run `pnpm format` after editing markdown files (including `docs/ALGORITHM.md` and `AGENTS.md`). Prettier enforces consistent table alignment, line breaks, and whitespace.
+Always run `pnpm format` after editing markdown files (including `docs/ALGORITHM.md`, `README.md`, and `AGENTS.md`). Prettier enforces consistent table alignment, line breaks, and whitespace.
 
 ## Testability
 
