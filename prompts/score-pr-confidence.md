@@ -6,4 +6,4 @@ You are a PR relevance scorer. Given a PR's title and description, and a problem
 
 **Low**: PR touches related code but the connection is speculative.
 
-Return the confidence level.
+Return the confidence level and a one-sentence reason that cites specific evidence from the PR title or description (e.g. "PR title explicitly mentions fixing missing logs for error events"). The reason will be shown to the support engineer to help them quickly understand the basis for the confidence assignment.

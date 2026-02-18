@@ -34,7 +34,7 @@ Pseudo-code signatures for tools used by subtasks. Implementations MAY vary.
 | `get_releases_from_version`    | `get_releases_from_version(repo: string, from_version: string) -> Release[]`                         | GitHub API: list stable releases strictly after `from_version` (oldest → newest). MUST exclude pre-release versions. SHOULD use server-side filtering where the API supports it; otherwise filter client-side. |
 | `filter_relevant_entries`      | `filter_relevant_entries(release_notes: string, problem: string) -> (release, line, pr_reference)[]` | LLM: identify release note lines relevant to `problem`.                                                                                                                                                        |
 | `get_pr_details`               | `get_pr_details(repo: string, pr_number: int) -> PRDetails`                                          | GitHub API: fetch PR title and description.                                                                                                                                                                    |
-| `score_pr_confidence`          | `score_pr_confidence(pr: PRDetails, problem: string) -> Confidence`                                  | LLM: assign high/medium/low confidence that PR fixes `problem`.                                                                                                                                                |
+| `score_pr_confidence`          | `score_pr_confidence(pr: PRDetails, problem: string) -> { level: Confidence, reason: string }`       | LLM: assign high/medium/low confidence that PR fixes `problem`, plus a one-sentence explanation of why.                                                                                                        |
 | `fetch_thread_messages`        | `fetch_thread_messages(channel: string, thread_ts: string) -> string`                                | Slack: fetch all messages in a thread via `conversations.replies`. Returns formatted text (e.g. `User: message`) for the full thread. Used for input collection before analysis.                               |
 | `post_slack_message`           | `post_slack_message(text: string) -> message_id`                                                     | Slack: post new message to thread.                                                                                                                                                                             |
 | `update_slack_message`         | `update_slack_message(message_id: string, text: string) -> void`                                     | Slack: update existing message.                                                                                                                                                                                |
@@ -162,13 +162,15 @@ After all batches are processed, the accumulated candidate list is the output. L
 
 ### Confidence levels
 
-For each PR, the agent MUST assign a confidence level:
+For each PR, the agent MUST assign a confidence level and a one-sentence reason explaining the assignment:
 
 | Confidence | Criteria                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------------------------------------------- |
 | **High**   | PR title/description explicitly mentions fixing the reported symptom. The change is clearly in the same subsystem.    |
 | **Medium** | PR is in the right area (same feature/module) but does not directly mention the symptom. Could be a contributing fix. |
 | **Low**    | PR touches related code but the connection is speculative.                                                            |
+
+The `reason` MUST be a single sentence that cites specific evidence from the PR title or description (e.g. "PR title explicitly mentions fixing missing logs for error events"). The reason is surfaced to the support engineer in the final Slack message so they can quickly understand the basis for the confidence assignment without reading the full PR.
 
 ### Release notes format
 
@@ -198,11 +200,11 @@ The agent MUST format and post the result according to the confidence level.
 
 ### High confidence
 
-The agent MUST report the fix version with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability. The agent MUST include a `Confidence: **High**` line after the main finding.
+The agent MUST report the fix version with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability. The agent MUST include a `Confidence: **High**` line followed by the reason on the same line after the main finding.
 
 ```
 ✓ This was fixed in **v<version>**. See [PR #N](url).
-Confidence: **High**
+Confidence: **High** — <reason>
 
 Checked: releases <first>–<last> in <repo>.
 ```
@@ -213,7 +215,7 @@ Checked: releases <first>–<last> in <repo>.
 
 When no high-confidence PR is found but at least one medium-confidence candidate exists, the agent MUST report the **top 3** medium-confidence releases or PRs as potential candidates. This fallback helps when WIF is unsure.
 
-The agent MUST list up to 3 candidates (oldest first, as encountered during the scan). Use **bold** for versions and `[PR #N](url)` for links. The agent MUST include a `Confidence: **Medium**` line after the main finding.
+The agent MUST list up to 3 candidates (oldest first, as encountered during the scan). Use **bold** for versions and `[PR #N](url)` for links. The agent MUST include a `Confidence: **Medium**` line followed by the reason (from the best candidate) on the same line after the main finding.
 
 ```
 I'm not fully certain, but here are potential candidates:
@@ -223,7 +225,7 @@ I'm not fully certain, but here are potential candidates:
 3. **v<version3>** — [PR #N3](url)
 
 Deferring to SDK maintainers to confirm.
-Confidence: **Medium**
+Confidence: **Medium** — <reason>
 
 Checked: releases <first>–<last> in <repo>.
 ```
@@ -296,4 +298,4 @@ In all cases, the agent MUST include the reasoning trace (which releases were ch
 
 **Expected behavior:** The link points to an issue fixed in 8.43.0, but the user is on 8.48.0 and still sees the problem. Subtask 3 MUST discard this link (fix is at or before the user's version). The agent MUST proceed to Subtask 4 and scan release notes forward from 8.48.0. The linear scan finds [#5242 — "Add missing context for watchdog termination events"](https://github.com/getsentry/sentry-cocoa/releases/tag/8.52.0) in release 8.52.0 as the fix.
 
-**Expected answer:** "✓ This was fixed in **v8.52.0**. See [PR #5242](url). Confidence: **High**. Checked: releases 8.49.0–8.52.0 in getsentry/sentry-cocoa." (actual range scanned; no "Relevant PRs evaluated" when only one PR)
+**Expected answer:** "✓ This was fixed in **v8.52.0**. See [PR #5242](url). Confidence: **High** — PR explicitly adds missing context for watchdog termination events, directly addressing the empty tags symptom. Checked: releases 8.49.0–8.52.0 in getsentry/sentry-cocoa." (actual range scanned; no "Relevant PRs evaluated" when only one PR)

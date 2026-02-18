@@ -128,6 +128,8 @@ describe('analyzeIssue', () => {
         version: '8.52.0',
         prNumber: 5242,
         prLink: 'https://github.com/getsentry/sentry-cocoa/pull/5242',
+        reason:
+          'PR title explicitly mentions adding missing context for watchdog termination events.',
       }),
     });
 
@@ -145,6 +147,8 @@ describe('analyzeIssue', () => {
     expect(finalMessage).toContain('✓');
     expect(finalMessage).toContain('**v8.52.0**');
     expect(finalMessage).toContain('[PR #5242]');
+    expect(finalMessage).toContain('Confidence: **High** —');
+    expect(finalMessage).toContain('watchdog termination events');
     expect(finalMessage).not.toContain('Relevant PRs evaluated');
   });
 
@@ -167,6 +171,8 @@ describe('analyzeIssue', () => {
           prNumber: 5242,
           prLink: 'https://github.com/getsentry/sentry-cocoa/pull/5242',
           confidence: 'high',
+          reason:
+            'PR title explicitly mentions adding missing context for watchdog termination events.',
         },
       }),
     });
@@ -184,6 +190,8 @@ describe('analyzeIssue', () => {
     expect(finalMessage).toContain('✓');
     expect(finalMessage).toContain('**v8.52.0**');
     expect(finalMessage).toContain('[PR #5242]');
+    expect(finalMessage).toContain('Confidence: **High** —');
+    expect(finalMessage).toContain('watchdog termination events');
     expect(finalMessage).toContain('Checked: releases `v8.49.0`–`8.52.0`');
     expect(finalMessage).not.toContain('9.4.1');
     expect(finalMessage).not.toContain('Relevant PRs evaluated');
@@ -211,18 +219,22 @@ describe('analyzeIssue', () => {
             prNumber: 100,
             prLink: 'https://github.com/getsentry/sentry-cocoa/pull/100',
             confidence: 'medium',
+            reason:
+              'PR modifies the same logging subsystem but does not mention the symptom directly.',
           },
           {
             version: '8.46.0',
             prNumber: 101,
             prLink: 'https://github.com/getsentry/sentry-cocoa/pull/101',
             confidence: 'medium',
+            reason: 'PR touches related error event handling code.',
           },
           {
             version: '8.46.0',
             prNumber: 102,
             prLink: 'https://github.com/getsentry/sentry-cocoa/pull/102',
             confidence: 'medium',
+            reason: 'PR modifies error event handling.',
           },
         ],
       }),
@@ -235,6 +247,9 @@ describe('analyzeIssue', () => {
     )?.[0];
     expect(finalMessage).toContain('potential candidates');
     expect(finalMessage).toContain('1. **v8.46.0**');
+    expect(finalMessage).toContain('Confidence: **Medium** —');
+    expect(finalMessage).toContain('logging subsystem');
+    expect(finalMessage).toContain('Relevant PRs evaluated:');
     expect(finalMessage).toContain('[PR #100]');
     expect(finalMessage).toContain('[PR #101]');
     expect(finalMessage).toContain('[PR #102]');
@@ -258,10 +273,10 @@ describe('analyzeIssue', () => {
       scanReleaseNotes: vi.fn().mockResolvedValue({
         kind: 'medium',
         candidates: [
-          { version: '8.46.0', prNumber: 100, prLink: 'x', confidence: 'medium' },
-          { version: '8.46.0', prNumber: 101, prLink: 'x', confidence: 'medium' },
-          { version: '8.46.0', prNumber: 102, prLink: 'x', confidence: 'medium' },
-          { version: '8.46.0', prNumber: 103, prLink: 'x', confidence: 'medium' },
+          { version: '8.46.0', prNumber: 100, prLink: 'x', confidence: 'medium', reason: 'a' },
+          { version: '8.46.0', prNumber: 101, prLink: 'x', confidence: 'medium', reason: 'b' },
+          { version: '8.46.0', prNumber: 102, prLink: 'x', confidence: 'medium', reason: 'c' },
+          { version: '8.46.0', prNumber: 103, prLink: 'x', confidence: 'medium', reason: 'd' },
         ],
       }),
     });
@@ -300,6 +315,7 @@ describe('analyzeIssue', () => {
             prNumber: 100,
             prLink: 'https://github.com/getsentry/sentry-cocoa/pull/100',
             confidence: 'medium',
+            reason: 'PR touches related code.',
           },
         ],
       }),

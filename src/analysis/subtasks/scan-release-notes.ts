@@ -7,6 +7,7 @@ export interface ScanCandidate {
   prNumber: number;
   prLink: string;
   confidence: 'high' | 'medium';
+  reason: string;
 }
 
 export interface ScanHighConfidenceResult {
@@ -57,9 +58,13 @@ export function createScanReleaseNotesSubtask(
         const prDetails = await tools.getPrDetails(repo, prNumber);
         if (!prDetails) continue;
 
-        const confidence = await tools.scorePrConfidence(prDetails.title, prDetails.body, problem);
+        const { level, reason } = await tools.scorePrConfidence(
+          prDetails.title,
+          prDetails.body,
+          problem
+        );
 
-        if (confidence === 'high') {
+        if (level === 'high') {
           return {
             kind: 'high_confidence',
             candidate: {
@@ -67,16 +72,18 @@ export function createScanReleaseNotesSubtask(
               prNumber,
               prLink: prLinkFor(repo, prNumber),
               confidence: 'high',
+              reason,
             },
           };
         }
 
-        if (confidence === 'medium') {
+        if (level === 'medium') {
           candidates.push({
             version: entry.release,
             prNumber,
             prLink: prLinkFor(repo, prNumber),
             confidence: 'medium',
+            reason,
           });
         }
       }
