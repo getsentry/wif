@@ -70,6 +70,8 @@ async function fetchReplies(
       ...(cursor && { cursor }),
     });
 
+    console.log('debug - of slack call:', result);
+
     if (!result.ok || !result.messages) {
       throw new Error('Failed to fetch thread messages');
     }
