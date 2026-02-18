@@ -201,10 +201,11 @@ The agent MUST format and post the result according to the confidence level.
 
 ### High confidence
 
-The agent MUST report the fix version with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability.
+The agent MUST report the fix version with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability. The agent MUST include a `Confidence: **High**` line after the main finding.
 
 ```
 ✓ This was fixed in **v<version>**. See [PR #N](url).
+Confidence: **High**
 
 Checked: releases <first>–<last> in <repo>.
 ```
@@ -213,11 +214,12 @@ Checked: releases <first>–<last> in <repo>.
 
 ### Medium confidence
 
-The agent MUST report with a caveat and defer for confirmation. Use **bold** for the version and `[PR #N](url)` for the link.
+The agent MUST report with a caveat and defer for confirmation. Use **bold** for the version and `[PR #N](url)` for the link. The agent MUST include a `Confidence: **Medium**` line after the main finding.
 
 ```
 **v<version>** includes changes that may address this ([PR #N](url)),
 but I'm not fully certain. Deferring to SDK maintainers to confirm.
+Confidence: **Medium**
 
 Checked: releases <first>–<last> in <repo>.
 ```
@@ -290,4 +292,4 @@ In all cases, the agent MUST include the reasoning trace (which releases were ch
 
 **Expected behavior:** The link points to an issue fixed in 8.43.0, but the user is on 8.48.0 and still sees the problem. Subtask 3 MUST discard this link (fix is at or before the user's version). The agent MUST proceed to Subtask 4 and scan release notes forward from 8.48.0. The linear scan finds [#5242 — "Add missing context for watchdog termination events"](https://github.com/getsentry/sentry-cocoa/releases/tag/8.52.0) in release 8.52.0 as the fix.
 
-**Expected answer:** "✓ This was fixed in **v8.52.0**. See [PR #5242](url). Checked: releases 8.49.0–8.52.0 in getsentry/sentry-cocoa." (actual range scanned; no "Relevant PRs evaluated" when only one PR)
+**Expected answer:** "✓ This was fixed in **v8.52.0**. See [PR #5242](url). Confidence: **High**. Checked: releases 8.49.0–8.52.0 in getsentry/sentry-cocoa." (actual range scanned; no "Relevant PRs evaluated" when only one PR)
