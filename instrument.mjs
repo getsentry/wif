@@ -12,5 +12,6 @@ Sentry.init({
   profilesSampleRate: 1.0,
   enableLogs: true,
   integrations: [Sentry.consoleLoggingIntegration()],
-  // debug: true,
+  sendDefaultPii: true,
+  debug: true,
 });

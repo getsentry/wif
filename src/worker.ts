@@ -4,6 +4,7 @@ import { createAnalysisTools } from './analysis/tools/index.js';
 import { createAnalysisSubtasks } from './analysis/subtasks/index.js';
 import { GitHubService } from './analysis/github.js';
 import { withReactionFeedback } from './slack/index.js';
+import * as Sentry from '@sentry/node';
 
 const defaultSlackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
 const defaultGitHubService = new GitHubService();
@@ -25,6 +26,8 @@ export async function processSlackWebhook(
     const { channel, ts, thread_ts } = event;
 
     await withReactionFeedback({ slackClient, channel, ts, threadTs: thread_ts }, async () => {
+      Sentry.setConversationId(ts ?? thread_ts);
+
       const tools = createAnalysisTools(
         { slackClient, channel, threadTs: thread_ts ?? ts },
         defaultGitHubService
