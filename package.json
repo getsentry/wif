@@ -35,7 +35,9 @@
     "zod": "^4.3.6"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@sentry/cli"]
+    "onlyBuiltDependencies": [
+      "@sentry/cli"
+    ]
   },
   "devDependencies": {
     "@commitlint/cli": "^20.4.1",
