@@ -1,4 +1,5 @@
 import type { webApi } from '@slack/bolt';
+import { withToolSpan } from './span.js';
 
 export interface SlackToolsContext {
   slackClient: Pick<webApi.WebClient, 'chat'>;
@@ -11,20 +12,24 @@ export function createSlackTools(ctx: SlackToolsContext) {
 
   return {
     async updateSlackMessage(ts: string | undefined, text: string): Promise<void> {
-      if (!ts) return;
-      await slackClient.chat.update({
-        channel,
-        ts,
-        markdown_text: text,
+      return withToolSpan('updateSlackMessage', { ts, channel }, async () => {
+        if (!ts) return;
+        await slackClient.chat.update({
+          channel,
+          ts,
+          markdown_text: text,
+        });
       });
     },
     async postNewSlackMessage(text: string): Promise<string | undefined> {
-      const response = await slackClient.chat.postMessage({
-        channel,
-        thread_ts: threadTs,
-        markdown_text: text,
+      return withToolSpan('postNewSlackMessage', { channel, threadTs }, async () => {
+        const response = await slackClient.chat.postMessage({
+          channel,
+          thread_ts: threadTs,
+          markdown_text: text,
+        });
+        return response.ts;
       });
-      return response.ts;
     },
   };
 }

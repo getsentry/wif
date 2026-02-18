@@ -4,6 +4,7 @@ import { generateText, Output } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import type { z as zType } from 'zod';
+import { withToolSpan } from './span.js';
 
 const extractRequestSchema = z.object({
   sdk: z.string().nullable().describe('SDK identifier (e.g., sentry-cocoa, iOS)'),
@@ -60,45 +61,58 @@ export function createAITools() {
     generateObject,
 
     async extractRequest(message: string): Promise<z.infer<typeof extractRequestSchema>> {
-      const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'extract-request.md');
-      const systemPrompt = await readFile(promptPath, 'utf-8');
-      return generateObject({
-        schema: extractRequestSchema,
-        system: systemPrompt,
-        prompt: message,
+      return withToolSpan('extractRequest', { message }, async () => {
+        const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'extract-request.md');
+        const systemPrompt = await readFile(promptPath, 'utf-8');
+        return generateObject({
+          schema: extractRequestSchema,
+          system: systemPrompt,
+          prompt: message,
+        });
       });
     },
 
     async resolveRepositoryAmbiguous(context: string): Promise<string> {
-      const promptPath = join(
-        __dirname,
-        '..',
-        '..',
-        '..',
-        'prompts',
-        'resolve-repository-ambiguous.md'
-      );
-      const systemPrompt = await readFile(promptPath, 'utf-8');
-      const result = await generateObject({
-        schema: resolveRepositorySchema,
-        system: systemPrompt,
-        prompt: context,
+      return withToolSpan('resolveRepositoryAmbiguous', { context }, async () => {
+        const promptPath = join(
+          __dirname,
+          '..',
+          '..',
+          '..',
+          'prompts',
+          'resolve-repository-ambiguous.md'
+        );
+        const systemPrompt = await readFile(promptPath, 'utf-8');
+        const result = await generateObject({
+          schema: resolveRepositorySchema,
+          system: systemPrompt,
+          prompt: context,
+        });
+        return result.repo;
       });
-      return result.repo;
     },
 
     async filterRelevantEntries(
       releaseNotes: string,
       problem: string
     ): Promise<Array<{ release: string; line: string; pr_reference?: string }>> {
-      const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'filter-relevant-entries.md');
-      const systemPrompt = await readFile(promptPath, 'utf-8');
-      const result = await generateObject({
-        schema: filterRelevantEntriesSchema,
-        system: systemPrompt,
-        prompt: `Problem: ${problem}\n\nRelease notes:\n${releaseNotes}`,
+      return withToolSpan('filterRelevantEntries', { problem }, async () => {
+        const promptPath = join(
+          __dirname,
+          '..',
+          '..',
+          '..',
+          'prompts',
+          'filter-relevant-entries.md'
+        );
+        const systemPrompt = await readFile(promptPath, 'utf-8');
+        const result = await generateObject({
+          schema: filterRelevantEntriesSchema,
+          system: systemPrompt,
+          prompt: `Problem: ${problem}\n\nRelease notes:\n${releaseNotes}`,
+        });
+        return result.entries;
       });
-      return result.entries;
     },
 
     async scorePrConfidence(
@@ -106,15 +120,24 @@ export function createAITools() {
       prBody: string | null,
       problem: string
     ): Promise<'high' | 'medium' | 'low'> {
-      const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'score-pr-confidence.md');
-      const systemPrompt = await readFile(promptPath, 'utf-8');
-      const body = (prBody ?? '').slice(0, 80000);
-      const result = await generateObject({
-        schema: scorePrConfidenceSchema,
-        system: systemPrompt,
-        prompt: `Problem: ${problem}\n\nPR Title: ${prTitle}\n\nPR Description:\n${body}`,
+      return withToolSpan('scorePrConfidence', { prTitle, problem }, async () => {
+        const promptPath = join(
+          __dirname,
+          '..',
+          '..',
+          '..',
+          'prompts',
+          'score-pr-confidence.md'
+        );
+        const systemPrompt = await readFile(promptPath, 'utf-8');
+        const body = (prBody ?? '').slice(0, 80000);
+        const result = await generateObject({
+          schema: scorePrConfidenceSchema,
+          system: systemPrompt,
+          prompt: `Problem: ${problem}\n\nPR Title: ${prTitle}\n\nPR Description:\n${body}`,
+        });
+        return result.confidence;
       });
-      return result.confidence;
     },
   };
 }

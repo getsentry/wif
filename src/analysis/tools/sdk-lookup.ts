@@ -1,3 +1,5 @@
+import { withSyncToolSpan } from './span.js';
+
 /**
  * Maps SDK identifiers to GitHub owner/repo slugs.
  * Used by lookup_sdk_repository tool.
@@ -22,6 +24,8 @@ const SDK_REPOSITORY_MAP: Record<string, string> = {
 };
 
 export function lookupSdkRepository(sdk: string): string | null {
-  const normalized = sdk.toLowerCase().trim();
-  return SDK_REPOSITORY_MAP[normalized] ?? null;
+  return withSyncToolSpan('lookupSdkRepository', { sdk }, () => {
+    const normalized = sdk.toLowerCase().trim();
+    return SDK_REPOSITORY_MAP[normalized] ?? null;
+  });
 }
