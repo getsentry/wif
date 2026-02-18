@@ -4,6 +4,7 @@ This file provides guidance for AI coding agents working with the wif repository
 
 ## Agent Responsibilities
 
+- **Algorithm compliance:** Code changes to the WIF agent logic MUST align with [docs/ALGORITHM.md](docs/ALGORITHM.md). That document is the single source of truth for the analyze workflow, subtasks, and tools. When implementing or modifying agent behavior, follow the RFC 2119 requirements specified there. If a code change conflicts with ALGORITHM.md, update ALGORITHM.md first, then implement.
 - **Continuous Learning**: Whenever an agent performs a task and discovers new patterns, conventions, or best practices that aren't documented here, it should add these learnings to AGENTS.md. This ensures the documentation stays current and helps future agents work more effectively.
 - **Context Management**: When using compaction (which reduces context by summarizing older messages), the agent must re-read AGENTS.md afterwards to ensure it's always fully available in context. This guarantees that all guidelines, conventions, and best practices remain accessible throughout the entire session.
 
@@ -150,6 +151,9 @@ When iterating on changes (e.g., addressing review feedback, fixing bugs, or imp
 - **GitHub App auth:** Use [octokit](https://github.com/octokit/octokit.js) with `@octokit/auth-app` for GitHub App authentication. Use `createAppAuth` with `appId`, `privateKey`, and `installationId`.
 - **Private key loading:** Try `/run/secrets/github-app-private-key` first (production), then `./secrets/github-app-private-key` (local). Add `secrets/` to `.gitignore`.
 - **Environment variables:** `GITHUB_APP_ID` and `GITHUB_INSTALLATION_ID` override defaults. Document optional vars in `.env.example`.
+- **Release data:** Use the GitHub Releases API as the single source for release notes. Do not fetch or parse `CHANGELOG.md` files from repositories — for Sentry SDKs, the changelog content is published as GitHub Release notes. This avoids maintaining two data-source code paths.
+- **Pre-release filtering:** When listing releases, exclude versions with SemVer pre-release tags (`-alpha`, `-beta`, `-rc`). Use server-side filtering in the GitHub API where available; otherwise filter client-side via the `semver` package.
+- **Pagination efficiency:** When fetching releases for a version range, stop pagination as soon as the target boundary is reached. Do not fetch the entire release history and filter client-side.
 
 ## Error Handling
 
@@ -250,6 +254,27 @@ const tools = createAnalysisTools(slackContext, githubService);
 const subtasks = createAnalysisSubtasks(tools);
 await analyzeIssue(eventText, tools, subtasks);
 ```
+
+### Analysis Architecture
+
+The WIF analysis pipeline follows a **workflow → subtasks → tools** layering defined in [docs/ALGORITHM.md](docs/ALGORITHM.md):
+
+- **`src/analysis/analyze.ts`:** Top-level workflow entry point (`analyzeIssue`). Orchestrates subtasks in order, handles progress reporting, and posts the final answer.
+- **`src/analysis/subtasks/`:** One file per subtask. Each subtask is a factory function that receives tools and returns an async function. Subtasks contain the decision logic (e.g., LLM prompts, confidence scoring, early exit conditions). Export via `index.ts` barrel.
+- **`src/analysis/tools/`:** Reusable I/O primitives (Slack, GitHub API, LLM). Tools MUST NOT contain workflow logic — they only perform data access or generation. Typed via `types.ts`, composed via `index.ts` barrel.
+- **`prompts/`:** Markdown prompt files loaded by subtasks at runtime.
+
+When adding a new subtask or tool:
+
+1. Define the pseudo-code signature in `docs/ALGORITHM.md` first.
+2. Add the TypeScript interface to `src/analysis/tools/types.ts` (for tools) or `src/analysis/subtasks/index.ts` (for subtasks).
+3. Implement the function in its own file.
+4. Export via the barrel `index.ts`.
+5. Wire it into the workflow in `analyze.ts`.
+
+### Formatting After Documentation Changes
+
+Always run `pnpm format` after editing markdown files (including `docs/ALGORITHM.md` and `AGENTS.md`). Prettier enforces consistent table alignment, line breaks, and whitespace.
 
 ## Testability
 
