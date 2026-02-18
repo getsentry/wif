@@ -83,7 +83,8 @@ describe('processSlackWebhook', () => {
     expect(slackModule.fetchThreadMessages).toHaveBeenCalledWith(
       mockSlackClient,
       'C123',
-      '1234567890.123400'
+      '1234567890.123400',
+      'analyze this issue'
     );
     expect(analyzeModule.analyzeIssue).toHaveBeenCalledWith(
       'Phil: Hey was X fixed yet?\n\nLukas: analyze this issue',
@@ -121,7 +122,8 @@ describe('processSlackWebhook', () => {
     expect(slackModule.fetchThreadMessages).toHaveBeenCalledWith(
       mockSlackClient,
       'C123',
-      '1234567890.123456'
+      '1234567890.123456',
+      'analyze this'
     );
     expect(analyzeModule.analyzeIssue).toHaveBeenCalledWith(
       'Phil: analyze this',

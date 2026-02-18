@@ -30,7 +30,12 @@ export async function processSlackWebhook(
       Sentry.setConversationId(ts ?? thread_ts);
       Sentry.setUser({ id: event.user });
 
-      const threadText = await fetchThreadMessages(slackClient, channel, threadRootTs);
+      const threadText = await fetchThreadMessages(
+        slackClient,
+        channel,
+        threadRootTs,
+        event.text ?? ''
+      );
 
       const tools = createAnalysisTools(
         { slackClient, channel, threadTs: thread_ts ?? ts },

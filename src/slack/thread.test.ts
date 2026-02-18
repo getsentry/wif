@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as Sentry from '@sentry/node';
 import { fetchThreadMessages } from './thread.js';
+
+vi.mock('@sentry/node', () => ({
+  captureException: vi.fn(),
+}));
+
+const FALLBACK = 'fallback event text';
 
 describe('fetchThreadMessages', () => {
   beforeEach(() => {
@@ -25,7 +32,12 @@ describe('fetchThreadMessages', () => {
       },
     };
 
-    const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1234567890.123400');
+    const result = await fetchThreadMessages(
+      mockSlackClient as never,
+      'C123',
+      '1234567890.123400',
+      FALLBACK
+    );
 
     expect(mockSlackClient.conversations.replies).toHaveBeenCalledWith({
       channel: 'C123',
@@ -55,7 +67,7 @@ describe('fetchThreadMessages', () => {
       },
     };
 
-    const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1');
+    const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1', FALLBACK);
 
     expect(mockSlackClient.conversations.replies).toHaveBeenCalledTimes(2);
     expect(mockSlackClient.conversations.replies).toHaveBeenNthCalledWith(2, {
@@ -80,21 +92,23 @@ describe('fetchThreadMessages', () => {
       },
     };
 
-    const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1');
+    const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1', FALLBACK);
 
     expect(result).toBe('U1: Hello');
   });
 
-  it('throws when conversations.replies fails', async () => {
+  it('returns fallback text and reports to Sentry when replies fails', async () => {
+    const apiError = new Error('missing_scope');
     const mockSlackClient = {
       conversations: {
-        replies: vi.fn().mockResolvedValue({ ok: false }),
+        replies: vi.fn().mockRejectedValue(apiError),
       },
       users: { info: vi.fn() },
     };
 
-    await expect(fetchThreadMessages(mockSlackClient as never, 'C123', '1')).rejects.toThrow(
-      'Failed to fetch thread messages'
-    );
+    const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1', FALLBACK);
+
+    expect(result).toBe(FALLBACK);
+    expect(Sentry.captureException).toHaveBeenCalledWith(apiError);
   });
 });
