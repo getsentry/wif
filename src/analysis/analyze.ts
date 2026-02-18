@@ -257,14 +257,17 @@ async function postResult(
     case 'high_confidence': {
       const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
       responseText =
-        `✓ This was fixed in **v${normalizeVersion(result.version)}**. See ${prMd}.\n\n` + trace;
+        `✓ This was fixed in **v${normalizeVersion(result.version)}**. See ${prMd}.\n` +
+        `Confidence: **High**\n\n` +
+        trace;
       break;
     }
     case 'medium_confidence': {
       const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
       responseText =
         `**v${normalizeVersion(result.version)}** includes changes that may address this (${prMd}), ` +
-        `but I'm not fully certain. Deferring to SDK maintainers to confirm.\n\n` +
+        `but I'm not fully certain. Deferring to SDK maintainers to confirm.\n` +
+        `Confidence: **Medium**\n\n` +
         trace;
       break;
     }
