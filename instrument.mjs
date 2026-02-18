@@ -11,7 +11,7 @@ Sentry.init({
   // Profiling
   profilesSampleRate: 1.0,
   enableLogs: true,
-  integrations: [Sentry.consoleLoggingIntegration({levels: ['log', 'info', 'warn', 'error']})],
+  integrations: [Sentry.consoleLoggingIntegration({ levels: ['log', 'info', 'warn', 'error'] })],
   sendDefaultPii: true,
   debug: true,
 });

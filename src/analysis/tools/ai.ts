@@ -121,14 +121,7 @@ export function createAITools() {
       problem: string
     ): Promise<'high' | 'medium' | 'low'> {
       return withToolSpan('scorePrConfidence', { prTitle, problem }, async () => {
-        const promptPath = join(
-          __dirname,
-          '..',
-          '..',
-          '..',
-          'prompts',
-          'score-pr-confidence.md'
-        );
+        const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'score-pr-confidence.md');
         const systemPrompt = await readFile(promptPath, 'utf-8');
         const body = (prBody ?? '').slice(0, 80000);
         const result = await generateObject({
