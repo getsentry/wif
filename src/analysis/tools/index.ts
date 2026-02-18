@@ -21,6 +21,7 @@ export function createAnalysisTools(
     : {
         postNewSlackMessage: async (): Promise<undefined> => undefined,
         updateSlackMessage: async (): Promise<void> => {},
+        uploadFileToThread: async (): Promise<void> => {},
       };
 
   const githubTools = githubService

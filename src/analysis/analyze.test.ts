@@ -20,6 +20,7 @@ function makeMockTools(overrides?: Partial<AnalysisTools>): AnalysisTools {
       .mockResolvedValueOnce('progress-ts')
       .mockResolvedValue('result-ts'),
     updateSlackMessage: vi.fn().mockResolvedValue(undefined),
+    uploadFileToThread: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as AnalysisTools;
 }
@@ -75,6 +76,37 @@ describe('analyzeIssue', () => {
     );
     expect(tools.postNewSlackMessage).toHaveBeenLastCalledWith(
       expect.stringContaining("I wasn't able to identify a fix")
+    );
+  });
+
+  it('uploads reasoning document with final result', async () => {
+    const tools = makeMockTools();
+    const subtasks = makeMockSubtasks();
+    await analyzeIssue('Some issue', tools, subtasks);
+
+    expect(tools.uploadFileToThread).toHaveBeenCalledWith(
+      'reasoning.md',
+      expect.stringContaining('# WIF Reasoning Document')
+    );
+    expect(tools.uploadFileToThread).toHaveBeenCalledWith(
+      'reasoning.md',
+      expect.stringContaining('Step 1: Extract Request')
+    );
+    expect(tools.uploadFileToThread).toHaveBeenCalledWith(
+      'reasoning.md',
+      expect.stringContaining('Step 2: Resolve Repository')
+    );
+    expect(tools.uploadFileToThread).toHaveBeenCalledWith(
+      'reasoning.md',
+      expect.stringContaining('Fetch Release Range')
+    );
+    expect(tools.uploadFileToThread).toHaveBeenCalledWith(
+      'reasoning.md',
+      expect.stringContaining('Scan Release Notes')
+    );
+    expect(tools.uploadFileToThread).toHaveBeenCalledWith(
+      'reasoning.md',
+      expect.stringContaining('Final Result')
     );
   });
 
