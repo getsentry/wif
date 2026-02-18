@@ -195,30 +195,32 @@ The agent MUST format and post the result according to the confidence level.
 
 ### High confidence
 
-The agent MUST report the fix version with supporting evidence:
+The agent MUST report the fix version with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability.
 
 ```
-This was fixed in v<version>. See <PR link(s)>.
+✓ This was fixed in **v<version>**. See [PR #N](url).
 
 Checked: releases <first>–<last> in <repo>.
-Relevant PRs evaluated: <list>.
 ```
+
+`<first>`–`<last>` MUST reflect the **actual** range scanned. When the agent exits early after finding a high-confidence fix, `<last>` is the version where the fix was found, not the latest release in the fetched range. "Relevant PRs evaluated" is shown only when **more than one** PR was evaluated; omit it when there is a single PR.
 
 ### Medium confidence
 
-The agent MUST report with a caveat and defer for confirmation:
+The agent MUST report with a caveat and defer for confirmation. Use **bold** for the version and `[PR #N](url)` for the link.
 
 ```
-v<version> includes changes that may address this (<PR link>),
+**v<version>** includes changes that may address this ([PR #N](url)),
 but I'm not fully certain. Deferring to SDK maintainers to confirm.
 
 Checked: releases <first>–<last> in <repo>.
-Relevant PRs evaluated: <list>.
 ```
+
+"Relevant PRs evaluated" is shown only when more than one PR was evaluated.
 
 ### No result
 
-The agent MUST defer entirely:
+The agent MUST defer entirely. "Checked" uses the full range scanned (all releases in the range).
 
 ```
 I wasn't able to identify a fix in the releases after v<version>.
@@ -238,7 +240,7 @@ the latest stable release. Unable to look this up efficiently.
 Deferring to SDK maintainers.
 ```
 
-In all cases, the agent MUST include the reasoning trace (which releases were checked, which PRs were evaluated, and why the conclusion was reached). This allows the support engineer to validate the answer.
+In all cases, the agent MUST include the reasoning trace (which releases were checked, which PRs were evaluated, and why the conclusion was reached). This allows the support engineer to validate the answer. Use Slack markdown for readability: `[PR #N](url)` for links and **bold** for key terms (e.g., version).
 
 ---
 
@@ -282,4 +284,4 @@ In all cases, the agent MUST include the reasoning trace (which releases were ch
 
 **Expected behavior:** The link points to an issue fixed in 8.43.0, but the user is on 8.48.0 and still sees the problem. Subtask 3 MUST discard this link (fix is at or before the user's version). The agent MUST proceed to Subtask 4 and scan release notes forward from 8.48.0. The linear scan finds [#5242 — "Add missing context for watchdog termination events"](https://github.com/getsentry/sentry-cocoa/releases/tag/8.52.0) in release 8.52.0 as the fix.
 
-**Expected answer:** "This was fixed in v8.52.0. See PR #5242."
+**Expected answer:** "✓ This was fixed in **v8.52.0**. See [PR #5242](url). Checked: releases 8.49.0–8.52.0 in getsentry/sentry-cocoa." (actual range scanned; no "Relevant PRs evaluated" when only one PR)

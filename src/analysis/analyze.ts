@@ -1,8 +1,8 @@
-import type { AnalysisTools } from './tools/index.js';
 import type { AnalysisSubtasks, ScanReleaseNotesOutput } from './subtasks/index.js';
-import { prLinkFor } from './utils.js';
+import type { AnalysisTools } from './tools/index.js';
+import { prLinkMarkdown } from './utils.js';
 
-export type AnalysisResult =
+export type AnalysisResult = { message: string } & (
   | { kind: 'high_confidence'; version: string; prLink: string; prNumber: number }
   | {
       kind: 'medium_confidence';
@@ -12,11 +12,12 @@ export type AnalysisResult =
       candidates: Array<{ version: string; prLink: string; prNumber: number }>;
     }
   | { kind: 'no_result' }
-  | { kind: 'too_old'; message: string }
-  | { kind: 'already_latest'; message: string }
-  | { kind: 'invalid_version'; message: string }
-  | { kind: 'fetch_failed'; message: string }
-  | { kind: 'clarification'; message: string };
+  | { kind: 'too_old' }
+  | { kind: 'already_latest' }
+  | { kind: 'invalid_version' }
+  | { kind: 'fetch_failed' }
+  | { kind: 'clarification' }
+);
 
 export async function analyzeIssue(
   issueDescription: string,
@@ -50,6 +51,7 @@ export async function analyzeIssue(
     const linkResult = await subtasks.checkExtractedLinks(links, version, repo, problem);
     if (linkResult.kind === 'high_confidence') {
       const result: AnalysisResult = {
+        message: '',
         kind: 'high_confidence',
         version: linkResult.version,
         prLink: linkResult.prLink,
@@ -60,7 +62,7 @@ export async function analyzeIssue(
         firstRelease: linkResult.version,
         lastRelease: linkResult.version,
         releaseCount: 1,
-        evaluatedPrs: [linkResult.prLink],
+        evaluatedPrs: [prLinkMarkdown(repo, linkResult.prNumber)],
         skippedSteps,
       });
       return result;
@@ -121,11 +123,11 @@ export async function analyzeIssue(
 
   const releases = fetchResult.releases;
   const firstRelease = releases[0]?.tag ?? version;
-  const lastRelease = releases[releases.length - 1]?.tag ?? version;
+  const lastReleaseInRange = releases[releases.length - 1]?.tag ?? version;
 
   await tools.updateSlackMessage(
     progressTs,
-    `Scanning releases \`${firstRelease}\`–\`${lastRelease}\` (\`${releases.length}\` releases)…`
+    `Scanning releases \`${firstRelease}\`–\`${lastReleaseInRange}\` (\`${releases.length}\` releases)…`
   );
 
   const scanResult = await subtasks.scanReleaseNotes(releases, problem, repo, (done, total) => {
@@ -133,6 +135,10 @@ export async function analyzeIssue(
   });
 
   const result = mapScanResultToAnalysisResult(scanResult);
+  const lastRelease =
+    result.kind === 'high_confidence'
+      ? result.version
+      : (releases[releases.length - 1]?.tag ?? version);
   await postResult(tools, progressTs, result, {
     repo,
     firstRelease,
@@ -141,9 +147,9 @@ export async function analyzeIssue(
     version,
     evaluatedPrs:
       result.kind === 'high_confidence'
-        ? [prLinkFor(repo, result.prNumber)]
+        ? [prLinkMarkdown(repo, result.prNumber)]
         : result.kind === 'medium_confidence'
-          ? result.candidates.map((c) => c.prLink)
+          ? result.candidates.map((c) => prLinkMarkdown(repo, c.prNumber))
           : [],
     skippedSteps,
   });
@@ -154,6 +160,7 @@ export async function analyzeIssue(
 function mapScanResultToAnalysisResult(scan: ScanReleaseNotesOutput): AnalysisResult {
   if (scan.kind === 'high_confidence') {
     return {
+      message: '',
       kind: 'high_confidence',
       version: scan.candidate.version,
       prLink: scan.candidate.prLink,
@@ -163,6 +170,7 @@ function mapScanResultToAnalysisResult(scan: ScanReleaseNotesOutput): AnalysisRe
   if (scan.kind === 'medium') {
     const best = scan.candidates[0];
     return {
+      message: '',
       kind: 'medium_confidence',
       version: best.version,
       prLink: best.prLink,
@@ -174,7 +182,7 @@ function mapScanResultToAnalysisResult(scan: ScanReleaseNotesOutput): AnalysisRe
       })),
     };
   }
-  return { kind: 'no_result' };
+  return { kind: 'no_result', message: '' };
 }
 
 interface PostResultContext {
@@ -200,9 +208,9 @@ async function postResult(
         ? `Checked: version \`${ctx.version}\`.`
         : '';
   const evaluated =
-    ctx.evaluatedPrs && ctx.evaluatedPrs.length > 0
+    ctx.evaluatedPrs && ctx.evaluatedPrs.length > 1
       ? `Relevant PRs evaluated: ${ctx.evaluatedPrs.join(', ')}.`
-      : ctx.releaseCount !== undefined
+      : ctx.releaseCount !== undefined && (!ctx.evaluatedPrs || ctx.evaluatedPrs.length === 0)
         ? `Release notes reviewed: ${ctx.releaseCount}.`
         : '';
   const skipped =
@@ -215,16 +223,20 @@ async function postResult(
   const trace = [checked, evaluated, skipped].filter(Boolean).join('\n');
 
   switch (result.kind) {
-    case 'high_confidence':
+    case 'high_confidence': {
+      const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
       responseText =
-        `This was fixed in v${normalizeVersion(result.version)}. See ${result.prLink}.\n\n` + trace;
+        `✓ This was fixed in **v${normalizeVersion(result.version)}**. See ${prMd}.\n\n` + trace;
       break;
-    case 'medium_confidence':
+    }
+    case 'medium_confidence': {
+      const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
       responseText =
-        `v${normalizeVersion(result.version)} includes changes that may address this (${result.prLink}), ` +
+        `**v${normalizeVersion(result.version)}** includes changes that may address this (${prMd}), ` +
         `but I'm not fully certain. Deferring to SDK maintainers to confirm.\n\n` +
         trace;
       break;
+    }
     case 'no_result':
       responseText =
         `I wasn't able to identify a fix in the releases after v${ctx.version ?? '?'}.\n` +

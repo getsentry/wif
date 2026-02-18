@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { analyzeIssue } from './analyze.js';
-import type { AnalysisTools } from './tools/index.js';
 import type { AnalysisSubtasks } from './subtasks/index.js';
+import type { AnalysisTools } from './tools/index.js';
 
 function makeMockTools(overrides?: Partial<AnalysisTools>): AnalysisTools {
   return {
@@ -115,8 +115,102 @@ describe('analyzeIssue', () => {
     const result = await analyzeIssue('Issue with link', tools, subtasks);
 
     expect(result.kind).toBe('high_confidence');
-    expect(result.version).toBe('8.52.0');
+    if (result.kind === 'high_confidence') {
+      expect(result.version).toBe('8.52.0');
+    }
     expect(subtasks.fetchReleaseRange).not.toHaveBeenCalled();
+
+    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )?.[0];
+    expect(finalMessage).toContain('✓');
+    expect(finalMessage).toContain('**v8.52.0**');
+    expect(finalMessage).toContain('[PR #5242]');
+    expect(finalMessage).not.toContain('Relevant PRs evaluated');
+  });
+
+  it('posts markdown-formatted result and actual range for high-confidence from scan', async () => {
+    const tools = makeMockTools();
+    const subtasks = makeMockSubtasks({
+      fetchReleaseRange: vi.fn().mockResolvedValue({
+        kind: 'releases',
+        releases: [
+          { tag: 'v8.49.0', name: '8.49.0', url: '', body: '' },
+          { tag: 'v8.50.0', name: '8.50.0', url: '', body: '' },
+          { tag: 'v8.52.0', name: '8.52.0', url: '', body: '### Fixes\n- fix: watchdog (#5242)' },
+          { tag: 'v9.4.1', name: '9.4.1', url: '', body: '' },
+        ],
+      }),
+      scanReleaseNotes: vi.fn().mockResolvedValue({
+        kind: 'high_confidence',
+        candidate: {
+          version: '8.52.0',
+          prNumber: 5242,
+          prLink: 'https://github.com/getsentry/sentry-cocoa/pull/5242',
+          confidence: 'high',
+        },
+      }),
+    });
+
+    const result = await analyzeIssue('Watchdog tags empty', tools, subtasks);
+
+    expect(result.kind).toBe('high_confidence');
+    if (result.kind === 'high_confidence') {
+      expect(result.version).toBe('8.52.0');
+    }
+
+    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )?.[0];
+    expect(finalMessage).toContain('✓');
+    expect(finalMessage).toContain('**v8.52.0**');
+    expect(finalMessage).toContain('[PR #5242]');
+    expect(finalMessage).toContain('Checked: releases `v8.49.0`–`8.52.0`');
+    expect(finalMessage).not.toContain('9.4.1');
+    expect(finalMessage).not.toContain('Relevant PRs evaluated');
+  });
+
+  it('includes Relevant PRs evaluated when multiple PRs for medium confidence', async () => {
+    const tools = makeMockTools();
+    const subtasks = makeMockSubtasks({
+      fetchReleaseRange: vi.fn().mockResolvedValue({
+        kind: 'releases',
+        releases: [
+          {
+            tag: 'v8.46.0',
+            name: '8.46.0',
+            url: '',
+            body: '### Fixes\n- fix A (#100)\n- fix B (#101)',
+          },
+        ],
+      }),
+      scanReleaseNotes: vi.fn().mockResolvedValue({
+        kind: 'medium',
+        candidates: [
+          {
+            version: '8.46.0',
+            prNumber: 100,
+            prLink: 'https://github.com/getsentry/sentry-cocoa/pull/100',
+            confidence: 'medium',
+          },
+          {
+            version: '8.46.0',
+            prNumber: 101,
+            prLink: 'https://github.com/getsentry/sentry-cocoa/pull/101',
+            confidence: 'medium',
+          },
+        ],
+      }),
+    });
+
+    await analyzeIssue('Some regression', tools, subtasks);
+
+    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )?.[0];
+    expect(finalMessage).toContain('Relevant PRs evaluated:');
+    expect(finalMessage).toContain('[PR #100]');
+    expect(finalMessage).toContain('[PR #101]');
   });
 
   it('works without Slack posting when tools are no-ops', async () => {
