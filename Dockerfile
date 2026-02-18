@@ -18,7 +18,10 @@ COPY src ./src
 COPY prompts ./prompts
 
 # Symlink the Northflank-mounted secret so Sentry CLI can find it
-RUN if [ -f /secrets/.sentryclirc ]; then ln -sf /secrets/.sentryclirc ~/.sentryclirc; fi
+RUN if [ -f /secrets/.sentryclirc ]; \
+    then ln -sf /secrets/.sentryclirc ~/.sentryclirc; \
+    else echo "Warning: No .sentryclirc found in /secrets"; \
+    fi
 
 # Build TypeScript
 RUN pnpm run build
