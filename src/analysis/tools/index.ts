@@ -1,15 +1,14 @@
 import type { GitHubService } from '../github.js';
-import { createClassifierTools } from './classifier.js';
+import { createAITools } from './ai.js';
 import { createGitHubTools } from './github.js';
 import { createSlackTools } from './slack.js';
 import type { AnalysisTools } from './types.js';
 import type { SlackToolsContext } from './slack.js';
 
 export type { AnalysisTools } from './types.js';
-export type { Result } from './classifier.js';
 export { createSlackTools, type SlackToolsContext } from './slack.js';
 export { createGitHubTools } from './github.js';
-export { createClassifierTools } from './classifier.js';
+export { createAITools } from './ai.js';
 
 export function createAnalysisTools(
   slackContext?: SlackToolsContext | null,
@@ -29,5 +28,5 @@ export function createAnalysisTools(
         findAllReleases: async (): Promise<never[]> => [],
       };
 
-  return { ...createClassifierTools(), ...slackTools, ...githubTools };
+  return { ...createAITools(), ...slackTools, ...githubTools };
 }

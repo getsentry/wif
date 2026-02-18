@@ -73,6 +73,7 @@ describe('processSlackWebhook', () => {
     });
     expect(analyzeModule.analyzeIssue).toHaveBeenCalledWith(
       'analyze this issue',
+      expect.any(Object),
       expect.any(Object)
     );
   });

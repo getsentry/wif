@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { analyzeIssue } from './analyze.js';
-import type { AnalysisTools, Result } from './tools/index.js';
+import type { AnalysisTools } from './tools/index.js';
+import type { AnalysisSubtasks, Result } from './subtasks/index.js';
 
 const mockResult: Result = {
   owner: 'getsentry',
@@ -12,7 +13,7 @@ const mockResult: Result = {
 
 function makeMockTools(overrides?: Partial<AnalysisTools>): AnalysisTools {
   return {
-    classifyRepository: vi.fn().mockResolvedValue(mockResult),
+    generateObject: vi.fn().mockResolvedValue(mockResult),
     postNewSlackMessage: vi
       .fn()
       .mockResolvedValueOnce('progress-ts')
@@ -24,17 +25,26 @@ function makeMockTools(overrides?: Partial<AnalysisTools>): AnalysisTools {
   };
 }
 
+function makeMockSubtasks(overrides?: Partial<AnalysisSubtasks>): AnalysisSubtasks {
+  return {
+    classifyRepository: vi.fn().mockResolvedValue(mockResult),
+    ...overrides,
+  };
+}
+
 describe('analyzeIssue', () => {
   it('calls classifyRepository with the issue description and returns result', async () => {
     const tools = makeMockTools();
-    const result = await analyzeIssue('Some issue', tools);
+    const subtasks = makeMockSubtasks();
+    const result = await analyzeIssue('Some issue', tools, subtasks);
     expect(result).toEqual(mockResult);
-    expect(tools.classifyRepository).toHaveBeenCalledWith('Some issue');
+    expect(subtasks.classifyRepository).toHaveBeenCalledWith('Some issue');
   });
 
   it('posts progress message, updates it, then posts final result', async () => {
     const tools = makeMockTools();
-    await analyzeIssue('Some issue', tools);
+    const subtasks = makeMockSubtasks();
+    await analyzeIssue('Some issue', tools, subtasks);
 
     expect(tools.postNewSlackMessage).toHaveBeenNthCalledWith(1, 'Analyzing…');
     expect(tools.updateSlackMessage).toHaveBeenNthCalledWith(
@@ -55,7 +65,8 @@ describe('analyzeIssue', () => {
 
   it('includes SDK version in the result message', async () => {
     const tools = makeMockTools();
-    await analyzeIssue('Some issue', tools);
+    const subtasks = makeMockSubtasks();
+    await analyzeIssue('Some issue', tools, subtasks);
     expect(tools.postNewSlackMessage).toHaveBeenLastCalledWith(
       expect.stringContaining('*SDK Version:* 8.1.0')
     );
@@ -65,7 +76,8 @@ describe('analyzeIssue', () => {
     const tools = makeMockTools({
       postNewSlackMessage: vi.fn().mockResolvedValue(undefined),
     });
-    const result = await analyzeIssue('Some issue', tools);
+    const subtasks = makeMockSubtasks();
+    const result = await analyzeIssue('Some issue', tools, subtasks);
     expect(result).toEqual(mockResult);
     expect(tools.updateSlackMessage).toHaveBeenCalledWith(undefined, 'Classifying repository…');
     expect(tools.updateSlackMessage).toHaveBeenCalledWith(undefined, 'Classification done.');

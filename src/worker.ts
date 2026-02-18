@@ -1,6 +1,7 @@
 import { types, webApi, type EnvelopedEvent } from '@slack/bolt';
 import { analyzeIssue } from './analysis/analyze.js';
 import { createAnalysisTools } from './analysis/tools/index.js';
+import { createAnalysisSubtasks } from './analysis/subtasks/index.js';
 import { GitHubService } from './analysis/github.js';
 import { withReactionFeedback } from './slack/index.js';
 
@@ -28,8 +29,9 @@ export async function processSlackWebhook(
         { slackClient, channel, threadTs: thread_ts ?? ts },
         defaultGitHubService
       );
+      const subtasks = createAnalysisSubtasks(tools);
 
-      await analyzeIssue(event.text, tools);
+      await analyzeIssue(event.text, tools, subtasks);
 
       console.log('Replied to Slack thread successfully');
     });
