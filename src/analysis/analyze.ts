@@ -3,13 +3,14 @@ import type { AnalysisTools } from './tools/index.js';
 import { prLinkMarkdown } from './utils.js';
 
 export type AnalysisResult = { message: string } & (
-  | { kind: 'high_confidence'; version: string; prLink: string; prNumber: number }
+  | { kind: 'high_confidence'; version: string; prLink: string; prNumber: number; reason: string }
   | {
       kind: 'medium_confidence';
       version: string;
       prLink: string;
       prNumber: number;
-      candidates: Array<{ version: string; prLink: string; prNumber: number }>;
+      reason: string;
+      candidates: Array<{ version: string; prLink: string; prNumber: number; reason: string }>;
     }
   | { kind: 'no_result' }
   | { kind: 'too_old' }
@@ -62,6 +63,7 @@ export async function analyzeIssue(
         version: linkResult.version,
         prLink: linkResult.prLink,
         prNumber: linkResult.prNumber,
+        reason: linkResult.reason,
       };
       await postResult(
         tools,
@@ -195,6 +197,7 @@ function mapScanResultToAnalysisResult(scan: ScanReleaseNotesOutput): AnalysisRe
       version: scan.candidate.version,
       prLink: scan.candidate.prLink,
       prNumber: scan.candidate.prNumber,
+      reason: scan.candidate.reason,
     };
   }
   if (scan.kind === 'medium') {
@@ -205,10 +208,12 @@ function mapScanResultToAnalysisResult(scan: ScanReleaseNotesOutput): AnalysisRe
       version: best.version,
       prLink: best.prLink,
       prNumber: best.prNumber,
+      reason: best.reason,
       candidates: scan.candidates.map((c) => ({
         version: c.version,
         prLink: c.prLink,
         prNumber: c.prNumber,
+        reason: c.reason,
       })),
     };
   }
@@ -258,7 +263,7 @@ async function postResult(
       const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
       responseText =
         `✓ This was fixed in **v${normalizeVersion(result.version)}**. See ${prMd}.\n` +
-        `Confidence: **High**\n\n` +
+        `Confidence: **High** — ${result.reason}\n\n` +
         trace;
       break;
     }
@@ -267,7 +272,7 @@ async function postResult(
       responseText =
         `**v${normalizeVersion(result.version)}** includes changes that may address this (${prMd}), ` +
         `but I'm not fully certain. Deferring to SDK maintainers to confirm.\n` +
-        `Confidence: **Medium**\n\n` +
+        `Confidence: **Medium** — ${result.reason}\n\n` +
         trace;
       break;
     }

@@ -7,6 +7,7 @@ export interface LinkHighConfidenceResult {
   version: string;
   prNumber: number;
   prLink: string;
+  reason: string;
 }
 
 export interface LinkFallthrough {
@@ -52,15 +53,20 @@ export function createCheckExtractedLinksSubtask(
         const prDetails = await tools.getPrDetails(repo, resolution.pr_number);
         if (!prDetails) continue;
 
-        const confidence = await tools.scorePrConfidence(prDetails.title, prDetails.body, problem);
+        const { level, reason } = await tools.scorePrConfidence(
+          prDetails.title,
+          prDetails.body,
+          problem
+        );
 
-        if (confidence === 'high') {
+        if (level === 'high') {
           const prLink = prLinkFor(repo, resolution.pr_number);
           return {
             kind: 'high_confidence',
             version: resolution.fixed_in_version,
             prNumber: resolution.pr_number,
             prLink,
+            reason,
           };
         }
       } catch (error) {
