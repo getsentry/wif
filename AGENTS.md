@@ -180,11 +180,13 @@ The analysis layer is split into two distinct kinds of units with strict rules a
 Tools live in `src/analysis/tools/`. They are **atomic** — each tool wraps a single external capability.
 
 **Rules:**
+
 - **Must not** call other tools.
 - **Must not** call subtasks.
 - Are responsible for obtaining API keys, initializing clients, and handling auth.
 
 **Existing tools:**
+
 - `slack.ts` — post and update Slack messages
 - `github.ts` — fetch GitHub releases
 - `ai.ts` — call the AI model (`generateObject`)
@@ -212,11 +214,13 @@ export function createMyServiceTools() {
 Subtasks live in `src/analysis/subtasks/`. They **compose** tools to accomplish a higher-level goal.
 
 **Rules:**
+
 - **May** call tools (received via dependency injection).
 - **Must not** call other subtasks.
 - **Must not** obtain API keys or initialize clients — that is the tools' responsibility.
 
 **Existing subtasks:**
+
 - `classifier.ts` — `classifyRepository`: reads the prompt file, calls `tools.generateObject`, returns a structured result.
 
 **Adding a new subtask:**

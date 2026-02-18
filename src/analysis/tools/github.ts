@@ -7,16 +7,31 @@ export function createGitHubTools(githubService: GitHubService) {
       const all = await githubService.findAllReleases(repo);
       const fromParsed = semverParse(fromVersion) ?? semverParse(fromVersion.replace(/^v/, ''));
       if (!fromParsed) {
-        return all;
+        throw new Error(`Invalid version: "${fromVersion}" could not be parsed`);
       }
-      return all.filter((r) => {
+      const filtered = all.filter((r) => {
         const tagParsed = semverParse(r.tag);
         if (!tagParsed) return false;
-        return tagParsed.compare(fromParsed) >= 0;
+        if (tagParsed.prerelease?.length) return false;
+        return tagParsed.compare(fromParsed) > 0;
       });
+      return filtered.reverse();
     },
     async findAllReleases(repo: string): Promise<GitHubRelease[]> {
       return githubService.findAllReleases(repo);
+    },
+    async getIssueResolution(
+      issueUrl: string
+    ): Promise<{ fixed_in_version: string; pr_number: number } | null> {
+      return githubService.getIssueResolution(issueUrl);
+    },
+    async getPrDetails(
+      repo: string,
+      prNumber: number
+    ): Promise<{ title: string; body: string | null } | null> {
+      const pr = await githubService.getPullRequest(repo, prNumber);
+      if (!pr) return null;
+      return { title: pr.title, body: pr.body };
     },
   };
 }

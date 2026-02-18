@@ -392,7 +392,115 @@ export class GitHubService {
   }
 
   findReleaseForPr(pr: GitHubPullRequest, releases: GitHubRelease[]): string | undefined | null {
-    const release = releases.find((r) => r.body?.includes(pr.number.toString()));
-    return release?.name;
+    const prRefRegex = new RegExp(`\\(#${pr.number}\\)|#${pr.number}\\b`);
+    const containing = releases.filter((r) => prRefRegex.test(r.body ?? ''));
+    if (containing.length === 0) return undefined;
+    const oldest = containing.sort((a, b) => {
+      const semverA = semverParse(a.tag);
+      const semverB = semverParse(b.tag);
+      if (!semverA || !semverB) return 0;
+      return semverA.compare(semverB);
+    })[0];
+    return oldest?.tag ?? oldest?.name ?? undefined;
+  }
+
+  /**
+   * Parse a GitHub issue/PR URL into owner, repo, and number.
+   */
+  parseIssueUrl(url: string): { owner: string; repo: string; number: number } | null {
+    const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/(?:issues|pull)\/(\d+)/i);
+    if (!match) return null;
+    return {
+      owner: match[1],
+      repo: match[2],
+      number: parseInt(match[3], 10),
+    };
+  }
+
+  /**
+   * Check if a linked issue/PR was fixed and in which release.
+   * Returns fixed_in_version (tag) and pr_number if the fix is in a release.
+   */
+  async getIssueResolution(
+    issueUrl: string
+  ): Promise<{ fixed_in_version: string; pr_number: number } | null> {
+    const parsed = this.parseIssueUrl(issueUrl);
+    if (!parsed) return null;
+
+    const { owner, repo, number } = parsed;
+    const repoSlug = `${owner}/${repo}`;
+
+    try {
+      const octokit = this.getOctokit();
+
+      const issueResponse = await octokit.issues.get({
+        owner,
+        repo,
+        issue_number: number,
+      });
+      const issue = issueResponse.data;
+
+      let prNumber: number;
+      if (issue.pull_request) {
+        prNumber = number;
+      } else {
+        const pr = await this.findClosingPr(owner, repo, number);
+        if (!pr) return null;
+        prNumber = pr.number;
+      }
+
+      const prData = await octokit.pulls.get({
+        owner,
+        repo,
+        pull_number: prNumber,
+      });
+      const pr: GitHubPullRequest = {
+        id: prData.data.id,
+        number: prData.data.number,
+        title: prData.data.title,
+        body: prData.data.body,
+        html_url: prData.data.html_url,
+        merged_at: prData.data.merged_at,
+        merge_commit_sha: prData.data.merge_commit_sha,
+      };
+      if (!pr.merged_at) return null;
+
+      const releases = await this.findAllReleases(repoSlug);
+      const fixedInVersion = this.findReleaseForPr(pr, releases);
+      if (!fixedInVersion) return null;
+
+      return { fixed_in_version: fixedInVersion, pr_number: prNumber };
+    } catch (error) {
+      console.error(`Failed to get issue resolution for ${issueUrl}:`, error);
+      Sentry.captureException(error);
+      return null;
+    }
+  }
+
+  private async findClosingPr(
+    owner: string,
+    repo: string,
+    issueNumber: number
+  ): Promise<{ number: number } | null> {
+    const patterns = [
+      new RegExp(`(?:fixes?|closes?|resolves?)\\s*#\\s*${issueNumber}\\b`, 'i'),
+      new RegExp(`#\\s*${issueNumber}\\b`, 'i'),
+    ];
+
+    const octokit = this.getOctokit();
+    const { data } = await octokit.search.issuesAndPullRequests({
+      q: `repo:${owner}/${repo} type:pr is:merged`,
+      sort: 'updated',
+      order: 'desc',
+      per_page: 30,
+    });
+
+    for (const item of data.items) {
+      const text = `${item.title || ''} ${item.body || ''}`;
+      if (patterns.some((p) => p.test(text))) {
+        return { number: item.number };
+      }
+    }
+    return null;
   }
 }

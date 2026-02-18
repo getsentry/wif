@@ -1,10 +1,42 @@
 import type { z } from 'zod';
 import type { GitHubRelease } from '../github.js';
 
+export interface ExtractedRequest {
+  sdk: string | null;
+  version: string | null;
+  problem: string;
+  links?: string[];
+}
+
+export interface IssueResolution {
+  fixed_in_version: string;
+  pr_number: number;
+}
+
+export interface PrDetails {
+  title: string;
+  body: string | null;
+}
+
+export interface RelevantEntry {
+  release: string;
+  line: string;
+  pr_reference?: string;
+}
+
+export type Confidence = 'high' | 'medium' | 'low';
+
 export interface AnalysisTools {
   generateObject<T>(options: { schema: z.ZodType<T>; system: string; prompt: string }): Promise<T>;
-  updateSlackMessage(ts: string | undefined, text: string): Promise<void>;
-  postNewSlackMessage(text: string): Promise<string | undefined>;
+  extractRequest(message: string): Promise<ExtractedRequest>;
+  lookupSdkRepository(sdk: string): string | null;
+  resolveRepositoryAmbiguous(context: string): Promise<string>;
+  getIssueResolution(issueUrl: string): Promise<IssueResolution | null>;
   getReleasesFromVersion(repo: string, fromVersion: string): Promise<GitHubRelease[]>;
   findAllReleases(repo: string): Promise<GitHubRelease[]>;
+  filterRelevantEntries(releaseNotes: string, problem: string): Promise<RelevantEntry[]>;
+  getPrDetails(repo: string, prNumber: number): Promise<PrDetails | null>;
+  scorePrConfidence(prTitle: string, prBody: string | null, problem: string): Promise<Confidence>;
+  updateSlackMessage(ts: string | undefined, text: string): Promise<void>;
+  postNewSlackMessage(text: string): Promise<string | undefined>;
 }
