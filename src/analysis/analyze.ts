@@ -268,10 +268,15 @@ async function postResult(
       break;
     }
     case 'medium_confidence': {
-      const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
+      const topCandidates = result.candidates.slice(0, 3);
+      const candidateLines = topCandidates.map(
+        (c, i) =>
+          `${i + 1}. **v${normalizeVersion(c.version)}** — ${ctx.repo ? prLinkMarkdown(ctx.repo, c.prNumber) : c.prLink}`
+      );
       responseText =
-        `**v${normalizeVersion(result.version)}** includes changes that may address this (${prMd}), ` +
-        `but I'm not fully certain. Deferring to SDK maintainers to confirm.\n` +
+        `I'm not fully certain, but here are potential candidates:\n\n` +
+        candidateLines.join('\n') +
+        `\n\nDeferring to SDK maintainers to confirm.\n` +
         `Confidence: **Medium** — ${result.reason}\n\n` +
         trace;
       break;

@@ -197,7 +197,7 @@ describe('analyzeIssue', () => {
     expect(finalMessage).not.toContain('Relevant PRs evaluated');
   });
 
-  it('includes Relevant PRs evaluated when multiple PRs for medium confidence', async () => {
+  it('shows top 3 medium-confidence candidates as potential fixes when no high-confidence match', async () => {
     const tools = makeMockTools();
     const subtasks = makeMockSubtasks({
       fetchReleaseRange: vi.fn().mockResolvedValue({
@@ -207,7 +207,7 @@ describe('analyzeIssue', () => {
             tag: 'v8.46.0',
             name: '8.46.0',
             url: '',
-            body: '### Fixes\n- fix A (#100)\n- fix B (#101)',
+            body: '### Fixes\n- fix A (#100)\n- fix B (#101)\n- fix C (#102)',
           },
         ],
       }),
@@ -229,6 +229,13 @@ describe('analyzeIssue', () => {
             confidence: 'medium',
             reason: 'PR touches related error event handling code.',
           },
+          {
+            version: '8.46.0',
+            prNumber: 102,
+            prLink: 'https://github.com/getsentry/sentry-cocoa/pull/102',
+            confidence: 'medium',
+            reason: 'PR modifies error event handling.',
+          },
         ],
       }),
     });
@@ -238,11 +245,91 @@ describe('analyzeIssue', () => {
     const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
       -1
     )?.[0];
+    expect(finalMessage).toContain('potential candidates');
+    expect(finalMessage).toContain('1. **v8.46.0**');
     expect(finalMessage).toContain('Confidence: **Medium** —');
     expect(finalMessage).toContain('logging subsystem');
     expect(finalMessage).toContain('Relevant PRs evaluated:');
     expect(finalMessage).toContain('[PR #100]');
     expect(finalMessage).toContain('[PR #101]');
+    expect(finalMessage).toContain('[PR #102]');
+    expect(finalMessage).toContain('Deferring to SDK maintainers to confirm');
+  });
+
+  it('caps at top 3 when more than 3 medium-confidence candidates exist', async () => {
+    const tools = makeMockTools();
+    const subtasks = makeMockSubtasks({
+      fetchReleaseRange: vi.fn().mockResolvedValue({
+        kind: 'releases',
+        releases: [
+          {
+            tag: 'v8.46.0',
+            name: '8.46.0',
+            url: '',
+            body: '### Fixes\n- a (#100)\n- b (#101)\n- c (#102)\n- d (#103)',
+          },
+        ],
+      }),
+      scanReleaseNotes: vi.fn().mockResolvedValue({
+        kind: 'medium',
+        candidates: [
+          { version: '8.46.0', prNumber: 100, prLink: 'x', confidence: 'medium', reason: 'a' },
+          { version: '8.46.0', prNumber: 101, prLink: 'x', confidence: 'medium', reason: 'b' },
+          { version: '8.46.0', prNumber: 102, prLink: 'x', confidence: 'medium', reason: 'c' },
+          { version: '8.46.0', prNumber: 103, prLink: 'x', confidence: 'medium', reason: 'd' },
+        ],
+      }),
+    });
+
+    await analyzeIssue('Some regression', tools, subtasks);
+
+    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )?.[0];
+    expect(finalMessage).toContain('[PR #100]');
+    expect(finalMessage).toContain('[PR #101]');
+    expect(finalMessage).toContain('[PR #102]');
+    expect(finalMessage).toContain('[PR #103]'); // in trace (Relevant PRs evaluated)
+    expect(finalMessage).not.toContain('4. **'); // candidates list capped at 3
+  });
+
+  it('shows only available candidates when fewer than 3 medium-confidence matches', async () => {
+    const tools = makeMockTools();
+    const subtasks = makeMockSubtasks({
+      fetchReleaseRange: vi.fn().mockResolvedValue({
+        kind: 'releases',
+        releases: [
+          {
+            tag: 'v8.46.0',
+            name: '8.46.0',
+            url: '',
+            body: '### Fixes\n- fix A (#100)',
+          },
+        ],
+      }),
+      scanReleaseNotes: vi.fn().mockResolvedValue({
+        kind: 'medium',
+        candidates: [
+          {
+            version: '8.46.0',
+            prNumber: 100,
+            prLink: 'https://github.com/getsentry/sentry-cocoa/pull/100',
+            confidence: 'medium',
+            reason: 'PR touches related code.',
+          },
+        ],
+      }),
+    });
+
+    await analyzeIssue('Some regression', tools, subtasks);
+
+    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )?.[0];
+    expect(finalMessage).toContain('potential candidates');
+    expect(finalMessage).toContain('1. **v8.46.0**');
+    expect(finalMessage).toContain('[PR #100]');
+    expect(finalMessage).not.toContain('2. **');
   });
 
   it('works without Slack posting when tools are no-ops', async () => {
