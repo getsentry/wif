@@ -164,6 +164,92 @@ When iterating on changes (e.g., addressing review feedback, fixing bugs, or imp
 - **`src/middleware/`:** Middleware modules (e.g., `slackVerification.ts`, `errorHandler.ts`).
 - **`src/middleware/index.ts`:** Barrel file exporting middleware for clean imports.
 - **`src/github/`:** GitHub integration. Use OOP: `GithubClient` class, `types.ts` for interfaces, `index.ts` barrel export. Keep a clean file hierarchy for external service clients.
+- **`src/analysis/tools/`:** Atomic analysis tools (see below).
+- **`src/analysis/subtasks/`:** Composed analysis subtasks (see below).
+
+## Analysis: Tools and Subtasks
+
+The analysis layer is split into two distinct kinds of units with strict rules about what each may and must not do.
+
+### Tools
+
+Tools live in `src/analysis/tools/`. They are **atomic** — each tool wraps a single external capability.
+
+**Rules:**
+- **Must not** call other tools.
+- **Must not** call subtasks.
+- Are responsible for obtaining API keys, initializing clients, and handling auth.
+
+**Existing tools:**
+- `slack.ts` — post and update Slack messages
+- `github.ts` — fetch GitHub releases
+- `ai.ts` — call the AI model (`generateObject`)
+
+**Adding a new tool:**
+
+Create a `create<Name>Tools()` factory that returns an object of methods. Register the result in `createAnalysisTools()` in `tools/index.ts`, add its methods to the `AnalysisTools` interface in `tools/types.ts`, and add a no-op fallback if the underlying service is optional.
+
+```typescript
+// src/analysis/tools/myservice.ts
+export function createMyServiceTools() {
+  return {
+    async doSomething(input: string): Promise<string> {
+      const apiKey = process.env.MY_API_KEY;
+      if (!apiKey) throw new Error('MY_API_KEY is not configured');
+      // ... call external service directly
+      return result;
+    },
+  };
+}
+```
+
+### Subtasks
+
+Subtasks live in `src/analysis/subtasks/`. They **compose** tools to accomplish a higher-level goal.
+
+**Rules:**
+- **May** call tools (received via dependency injection).
+- **Must not** call other subtasks.
+- **Must not** obtain API keys or initialize clients — that is the tools' responsibility.
+
+**Existing subtasks:**
+- `classifier.ts` — `classifyRepository`: reads the prompt file, calls `tools.generateObject`, returns a structured result.
+
+**Adding a new subtask:**
+
+Create a `create<Name>Subtask(tools)` factory that returns an async function. Accept only the specific tools it needs via `Pick<AnalysisTools, '...'>`. Register the result in `createAnalysisSubtasks()` in `subtasks/index.ts` and add its signature to the `AnalysisSubtasks` interface.
+
+```typescript
+// src/analysis/subtasks/mysubtask.ts
+import type { AnalysisTools } from '../tools/types.js';
+
+export function createMySubtask(tools: Pick<AnalysisTools, 'generateObject' | 'findAllReleases'>) {
+  return async function mySubtask(input: string): Promise<MyResult> {
+    // use tools to accomplish the goal — no API keys, no client init here
+    const data = await tools.findAllReleases(input);
+    return tools.generateObject({ schema: mySchema, system: '...', prompt: '...' });
+  };
+}
+```
+
+### Orchestration (`analyzeIssue`)
+
+`analyzeIssue` in `src/analysis/analyze.ts` is the top-level orchestrator. It receives both `tools` and `subtasks` and may call either directly. It must not contain business logic that belongs in a subtask.
+
+```
+analyzeIssue(issueDescription, tools, subtasks)
+  ├── tools.postNewSlackMessage(...)   ← direct tool call
+  ├── subtasks.classifyRepository(...) ← subtask call
+  └── tools.postNewSlackMessage(...)   ← direct tool call
+```
+
+### Wiring it together (`worker.ts`)
+
+```typescript
+const tools = createAnalysisTools(slackContext, githubService);
+const subtasks = createAnalysisSubtasks(tools);
+await analyzeIssue(eventText, tools, subtasks);
+```
 
 ## Testability
 
