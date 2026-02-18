@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { processSlackWebhook } from './worker.js';
 import * as analyzeModule from './analysis/analyze.js';
+import * as slackModule from './slack/index.js';
 
 describe('processSlackWebhook', () => {
   beforeEach(() => {
@@ -11,6 +12,9 @@ describe('processSlackWebhook', () => {
       confidence: 'high',
       reasoning: 'Test reasoning',
     });
+    vi.spyOn(slackModule, 'fetchThreadMessages').mockResolvedValue(
+      'Phil: Hey was X fixed yet?\n\nLukas: analyze this issue'
+    );
   });
 
   it('resolves without error for non-app_mention events', async () => {
@@ -76,8 +80,51 @@ describe('processSlackWebhook', () => {
       timestamp: '1234567890.123456',
       name: 'white_check_mark',
     });
+    expect(slackModule.fetchThreadMessages).toHaveBeenCalledWith(
+      mockSlackClient,
+      'C123',
+      '1234567890.123400'
+    );
     expect(analyzeModule.analyzeIssue).toHaveBeenCalledWith(
-      'analyze this issue',
+      'Phil: Hey was X fixed yet?\n\nLukas: analyze this issue',
+      expect.any(Object),
+      expect.any(Object)
+    );
+  });
+
+  it('uses ts as thread root when message starts the thread (no thread_ts)', async () => {
+    vi.spyOn(slackModule, 'fetchThreadMessages').mockResolvedValue('Phil: analyze this');
+
+    const mockSlackClient = {
+      chat: {
+        postMessage: vi.fn().mockResolvedValue({ ok: true }),
+      },
+      reactions: {
+        add: vi.fn().mockResolvedValue({ ok: true }),
+        remove: vi.fn().mockResolvedValue({ ok: true }),
+      },
+    };
+
+    const data = {
+      event: {
+        type: 'app_mention',
+        channel: 'C123',
+        ts: '1234567890.123456',
+        text: 'analyze this',
+      },
+    };
+
+    await processSlackWebhook(data as never, {
+      slackClient: mockSlackClient as never,
+    });
+
+    expect(slackModule.fetchThreadMessages).toHaveBeenCalledWith(
+      mockSlackClient,
+      'C123',
+      '1234567890.123456'
+    );
+    expect(analyzeModule.analyzeIssue).toHaveBeenCalledWith(
+      'Phil: analyze this',
       expect.any(Object),
       expect.any(Object)
     );

@@ -10,7 +10,8 @@ Technical specification for the agent logic that answers "Was this fixed yet?" (
 
 The agent implements an **analyze workflow** composed of **subtasks** that call **tools**. Code MUST follow this structure:
 
-- **Workflow:** Top-level entry point that receives the issue description and orchestrates subtasks.
+- **Input collection:** Before analysis, the agent MUST fetch the **entire Slack thread** as input. The webhook receives a single message (either the thread start or a reply); the agent MUST use the Slack API (`conversations.replies`) to retrieve all messages in that thread and pass the combined content to the workflow.
+- **Workflow:** Top-level entry point that receives the issue description (full thread text) and orchestrates subtasks.
 - **Subtasks:** Discrete analysis steps (extract request, resolve repository, check extracted links, fetch release range, scan and evaluate release notes, resolve answer). Each subtask MAY use one or more tools.
 - **Tools:** Reusable primitives for external I/O (Slack, GitHub API, LLM). Tools MUST NOT contain workflow logic; they MUST only perform data access or generation.
 
@@ -34,6 +35,7 @@ Pseudo-code signatures for tools used by subtasks. Implementations MAY vary.
 | `filter_relevant_entries`      | `filter_relevant_entries(release_notes: string, problem: string) -> (release, line, pr_reference)[]` | LLM: identify release note lines relevant to `problem`.                                                                                                                                                        |
 | `get_pr_details`               | `get_pr_details(repo: string, pr_number: int) -> PRDetails`                                          | GitHub API: fetch PR title and description.                                                                                                                                                                    |
 | `score_pr_confidence`          | `score_pr_confidence(pr: PRDetails, problem: string) -> Confidence`                                  | LLM: assign high/medium/low confidence that PR fixes `problem`.                                                                                                                                                |
+| `fetch_thread_messages`        | `fetch_thread_messages(channel: string, thread_ts: string) -> string`                                | Slack: fetch all messages in a thread via `conversations.replies`. Returns formatted text (e.g. `User: message`) for the full thread. Used for input collection before analysis.                               |
 | `post_slack_message`           | `post_slack_message(text: string) -> message_id`                                                     | Slack: post new message to thread.                                                                                                                                                                             |
 | `update_slack_message`         | `update_slack_message(message_id: string, text: string) -> void`                                     | Slack: update existing message.                                                                                                                                                                                |
 
@@ -57,7 +59,7 @@ Pseudo-code signatures for tools used by subtasks. Implementations MAY vary.
 
 ## Subtask 1: Extract Request
 
-**Trigger:** An SDK support engineer posts a customer issue, typically a regression or missing behavior observed since a specific SDK version.
+**Trigger:** An SDK support engineer posts a customer issue, typically a regression or missing behavior observed since a specific SDK version. The input is the **entire thread** (see Input collection above), so the agent receives context from the thread start (e.g. "Hey was \<issue\> fixed yet?") and any replies (e.g. "Let's see if @wif knows that") that triggered the webhook. The thread root timestamp is `thread_ts` when the message is a reply, or `ts` when the message starts the thread.
 
 **Tools used:** `extract_request`.
 

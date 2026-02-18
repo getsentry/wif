@@ -3,7 +3,7 @@ import { analyzeIssue } from './analysis/analyze.js';
 import { createAnalysisTools } from './analysis/tools/index.js';
 import { createAnalysisSubtasks } from './analysis/subtasks/index.js';
 import { GitHubService } from './analysis/github.js';
-import { withReactionFeedback } from './slack/index.js';
+import { withReactionFeedback, fetchThreadMessages } from './slack/index.js';
 import * as Sentry from '@sentry/node';
 
 const defaultSlackClient = new webApi.WebClient(process.env.SLACK_BOT_TOKEN);
@@ -24,10 +24,13 @@ export async function processSlackWebhook(
   if (data.event.type === 'app_mention') {
     const event = data.event;
     const { channel, ts, thread_ts } = event;
+    const threadRootTs = thread_ts ?? ts;
 
     await withReactionFeedback({ slackClient, channel, ts, threadTs: thread_ts }, async () => {
       Sentry.setConversationId(ts ?? thread_ts);
       Sentry.setUser({ id: event.user });
+
+      const threadText = await fetchThreadMessages(slackClient, channel, threadRootTs);
 
       const tools = createAnalysisTools(
         { slackClient, channel, threadTs: thread_ts ?? ts },
@@ -35,7 +38,7 @@ export async function processSlackWebhook(
       );
       const subtasks = createAnalysisSubtasks(tools);
 
-      await analyzeIssue(event.text, tools, subtasks);
+      await analyzeIssue(threadText, tools, subtasks);
 
       console.log('Replied to Slack thread successfully');
     });
