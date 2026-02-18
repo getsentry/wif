@@ -26,6 +26,11 @@ export interface RelevantEntry {
 
 export type Confidence = 'high' | 'medium' | 'low';
 
+export interface ConfidenceResult {
+  level: Confidence;
+  reason: string;
+}
+
 export interface AnalysisTools {
   generateObject<T>(options: { schema: z.ZodType<T>; system: string; prompt: string }): Promise<T>;
   extractRequest(message: string): Promise<ExtractedRequest>;
@@ -36,7 +41,11 @@ export interface AnalysisTools {
   findAllReleases(repo: string): Promise<GitHubRelease[]>;
   filterRelevantEntries(releaseNotes: string, problem: string): Promise<RelevantEntry[]>;
   getPrDetails(repo: string, prNumber: number): Promise<PrDetails | null>;
-  scorePrConfidence(prTitle: string, prBody: string | null, problem: string): Promise<Confidence>;
+  scorePrConfidence(
+    prTitle: string,
+    prBody: string | null,
+    problem: string
+  ): Promise<ConfidenceResult>;
   updateSlackMessage(ts: string | undefined, text: string): Promise<void>;
   postNewSlackMessage(text: string): Promise<string | undefined>;
 }

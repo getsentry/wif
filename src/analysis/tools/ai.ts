@@ -29,6 +29,7 @@ const filterRelevantEntriesSchema = z.object({
 
 const scorePrConfidenceSchema = z.object({
   confidence: z.enum(['high', 'medium', 'low']),
+  reason: z.string().describe('One-sentence explanation citing specific evidence from the PR'),
 });
 
 export function createAITools() {
@@ -119,7 +120,7 @@ export function createAITools() {
       prTitle: string,
       prBody: string | null,
       problem: string
-    ): Promise<'high' | 'medium' | 'low'> {
+    ): Promise<{ level: 'high' | 'medium' | 'low'; reason: string }> {
       return withToolSpan('scorePrConfidence', { prTitle, problem }, async () => {
         const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'score-pr-confidence.md');
         const systemPrompt = await readFile(promptPath, 'utf-8');
@@ -129,7 +130,7 @@ export function createAITools() {
           system: systemPrompt,
           prompt: `Problem: ${problem}\n\nPR Title: ${prTitle}\n\nPR Description:\n${body}`,
         });
-        return result.confidence;
+        return { level: result.confidence, reason: result.reason };
       });
     },
   };
