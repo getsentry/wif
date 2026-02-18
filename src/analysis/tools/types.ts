@@ -39,5 +39,4 @@ export interface AnalysisTools {
   scorePrConfidence(prTitle: string, prBody: string | null, problem: string): Promise<Confidence>;
   updateSlackMessage(ts: string | undefined, text: string): Promise<void>;
   postNewSlackMessage(text: string): Promise<string | undefined>;
-  uploadFileToThread(filename: string, content: string): Promise<void>;
 }

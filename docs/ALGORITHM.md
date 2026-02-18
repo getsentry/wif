@@ -38,7 +38,6 @@ Pseudo-code signatures for tools used by subtasks. Implementations MAY vary.
 | `fetch_thread_messages`        | `fetch_thread_messages(channel: string, thread_ts: string) -> string`                                | Slack: fetch all messages in a thread via `conversations.replies`. Returns formatted text (e.g. `User: message`) for the full thread. Used for input collection before analysis.                               |
 | `post_slack_message`           | `post_slack_message(text: string) -> message_id`                                                     | Slack: post new message to thread.                                                                                                                                                                             |
 | `update_slack_message`         | `update_slack_message(message_id: string, text: string) -> void`                                     | Slack: update existing message.                                                                                                                                                                                |
-| `upload_file_to_thread`        | `upload_file_to_thread(filename: string, content: string) -> void`                                   | Slack: upload a file (e.g. reasoning document) to the thread. Used to attach the reasoning document with the final report.                                                                                     |
 
 ---
 
@@ -193,11 +192,9 @@ When scanning for bug fixes, the agent MUST prioritize "Fixes" sections. "Featur
 
 ## Subtask 6: Resolve Answer
 
-**Tools used:** `post_slack_message`, `update_slack_message`, `upload_file_to_thread`.
+**Tools used:** `post_slack_message`, `update_slack_message`.
 
 The agent MUST format and post the result according to the confidence level.
-
-**Reasoning document:** When the agent concludes, it MUST document all taken steps and outputs in a markdown file and upload it to the thread via `upload_file_to_thread`. The document MUST include: input (truncated if long), each step with its output, and the final result. This allows the support engineer to verify the reasoning.
 
 ### High confidence
 

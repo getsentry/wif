@@ -2,7 +2,7 @@ import type { webApi } from '@slack/bolt';
 import { withToolSpan } from './span.js';
 
 export interface SlackToolsContext {
-  slackClient: Pick<webApi.WebClient, 'chat' | 'files'>;
+  slackClient: Pick<webApi.WebClient, 'chat'>;
   channel: string;
   threadTs: string | undefined;
 }
@@ -29,17 +29,6 @@ export function createSlackTools(ctx: SlackToolsContext) {
           markdown_text: text,
         });
         return response.ts;
-      });
-    },
-    async uploadFileToThread(filename: string, content: string): Promise<void> {
-      return withToolSpan('uploadFileToThread', { channel, filename }, async () => {
-        await slackClient.files.upload({
-          channels: channel,
-          content,
-          filename,
-          initial_comment: 'Reasoning document',
-          ...(threadTs ? { thread_ts: threadTs } : {}),
-        } as Parameters<typeof slackClient.files.upload>[0]);
       });
     },
   };

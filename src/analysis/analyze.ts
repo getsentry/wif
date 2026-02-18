@@ -2,11 +2,6 @@ import type { AnalysisSubtasks, ScanReleaseNotesOutput } from './subtasks/index.
 import type { AnalysisTools } from './tools/index.js';
 import { prLinkMarkdown } from './utils.js';
 
-export interface ReasoningStep {
-  step: string;
-  output: string;
-}
-
 export type AnalysisResult = { message: string } & (
   | { kind: 'high_confidence'; version: string; prLink: string; prNumber: number }
   | {
@@ -31,7 +26,6 @@ export async function analyzeIssue(
 ): Promise<AnalysisResult> {
   let progressText = 'Analyzing…';
   const progressTs = await tools.postNewSlackMessage(progressText);
-  const reasoning: ReasoningStep[] = [];
 
   const appendProgress = async (line: string): Promise<void> => {
     progressText = progressText + '\n\n' + line;
@@ -40,42 +34,21 @@ export async function analyzeIssue(
 
   const extractResult = await subtasks.extractRequest(issueDescription);
   if (extractResult.kind === 'clarification') {
-    reasoning.push({
-      step: 'Extract Request',
-      output: `Clarification needed: ${extractResult.message}`,
-    });
     await appendProgress(extractResult.message);
     await tools.postNewSlackMessage(extractResult.message);
-    await uploadReasoning(tools, issueDescription, reasoning, {
-      kind: 'clarification',
-      message: extractResult.message,
-    });
     return { kind: 'clarification', message: extractResult.message };
   }
 
   const { sdk, version, problem, links } = extractResult;
-  reasoning.push({
-    step: 'Extract Request',
-    output: `SDK: ${sdk}, Version: ${version}, Problem: ${problem}${links?.length ? `, Links: ${links.join(', ')}` : ''}`,
-  });
 
   const resolveResult = await subtasks.resolveRepository(sdk, issueDescription);
   if (resolveResult.kind === 'clarification') {
-    reasoning.push({
-      step: 'Resolve Repository',
-      output: `Clarification needed: ${resolveResult.message}`,
-    });
     await appendProgress(resolveResult.message);
     await tools.postNewSlackMessage(resolveResult.message);
-    await uploadReasoning(tools, issueDescription, reasoning, {
-      kind: 'clarification',
-      message: resolveResult.message,
-    });
     return { kind: 'clarification', message: resolveResult.message };
   }
 
   const repo = resolveResult.repo;
-  reasoning.push({ step: 'Resolve Repository', output: repo });
 
   const skippedSteps: string[] = [];
 
@@ -83,10 +56,6 @@ export async function analyzeIssue(
     await appendProgress('Checking linked issues…');
     const linkResult = await subtasks.checkExtractedLinks(links, version, repo, problem);
     if (linkResult.kind === 'high_confidence') {
-      reasoning.push({
-        step: 'Check Extracted Links',
-        output: `High confidence from link: v${linkResult.version}, PR #${linkResult.prNumber}`,
-      });
       const result: AnalysisResult = {
         message: '',
         kind: 'high_confidence',
@@ -106,18 +75,10 @@ export async function analyzeIssue(
           evaluatedPrs: [prLinkMarkdown(repo, linkResult.prNumber)],
           skippedSteps,
         },
-        appendProgress,
-        issueDescription,
-        reasoning
+        appendProgress
       );
       return result;
     }
-    reasoning.push({
-      step: 'Check Extracted Links',
-      output: linkResult.skippedLinks?.length
-        ? `Fallthrough. Skipped: ${linkResult.skippedLinks.map((s) => `${s.url}: ${s.reason}`).join('; ')}`
-        : 'Fallthrough, no high-confidence match',
-    });
     if (linkResult.skippedLinks?.length) {
       for (const { url, reason } of linkResult.skippedLinks) {
         skippedSteps.push(`Could not check link ${url}: ${reason}`);
@@ -130,7 +91,6 @@ export async function analyzeIssue(
   const fetchResult = await subtasks.fetchReleaseRange(repo, version);
 
   if (fetchResult.kind === 'too_old') {
-    reasoning.push({ step: 'Fetch Release Range', output: 'Too old: >100 releases since version' });
     const result: AnalysisResult = { kind: 'too_old', message: fetchResult.message };
     await postResult(
       tools,
@@ -142,15 +102,12 @@ export async function analyzeIssue(
         releaseCount: 0,
         skippedSteps,
       },
-      appendProgress,
-      issueDescription,
-      reasoning
+      appendProgress
     );
     return result;
   }
 
   if (fetchResult.kind === 'already_latest') {
-    reasoning.push({ step: 'Fetch Release Range', output: 'Already on latest stable release' });
     const result: AnalysisResult = {
       kind: 'already_latest',
       message: fetchResult.message,
@@ -165,60 +122,32 @@ export async function analyzeIssue(
         releaseCount: 0,
         skippedSteps,
       },
-      appendProgress,
-      issueDescription,
-      reasoning
+      appendProgress
     );
     return result;
   }
 
   if (fetchResult.kind === 'invalid_version') {
-    reasoning.push({
-      step: 'Fetch Release Range',
-      output: `Invalid version: ${fetchResult.message}`,
-    });
     const result: AnalysisResult = {
       kind: 'invalid_version',
       message: fetchResult.message,
     };
-    await postResult(
-      tools,
-      progressTs,
-      result,
-      { repo, version, skippedSteps },
-      appendProgress,
-      issueDescription,
-      reasoning
-    );
+    await postResult(tools, progressTs, result, { repo, version, skippedSteps }, appendProgress);
     return result;
   }
 
   if (fetchResult.kind === 'fetch_failed') {
-    reasoning.push({ step: 'Fetch Release Range', output: `Fetch failed: ${fetchResult.message}` });
     const result: AnalysisResult = {
       kind: 'fetch_failed',
       message: fetchResult.message,
     };
-    await postResult(
-      tools,
-      progressTs,
-      result,
-      { repo, version, skippedSteps },
-      appendProgress,
-      issueDescription,
-      reasoning
-    );
+    await postResult(tools, progressTs, result, { repo, version, skippedSteps }, appendProgress);
     return result;
   }
 
   const releases = fetchResult.releases;
   const firstRelease = releases[0]?.tag ?? version;
   const lastReleaseInRange = releases[releases.length - 1]?.tag ?? version;
-
-  reasoning.push({
-    step: 'Fetch Release Range',
-    output: `${releases.length} releases (${firstRelease}–${lastReleaseInRange})`,
-  });
 
   await appendProgress(
     `Scanning releases \`${firstRelease}\`–\`${lastReleaseInRange}\` (\`${releases.length}\` releases)…`
@@ -229,13 +158,6 @@ export async function analyzeIssue(
   });
 
   const result = mapScanResultToAnalysisResult(scanResult);
-  const scanOutput =
-    result.kind === 'high_confidence'
-      ? `High confidence: v${result.version}, PR #${result.prNumber}`
-      : result.kind === 'medium_confidence'
-        ? `Medium confidence: v${result.version}, PR #${result.prNumber}; candidates: ${result.candidates.length}`
-        : 'No result';
-  reasoning.push({ step: 'Scan Release Notes', output: scanOutput });
 
   const lastRelease =
     result.kind === 'high_confidence'
@@ -259,9 +181,7 @@ export async function analyzeIssue(
             : [],
       skippedSteps,
     },
-    appendProgress,
-    issueDescription,
-    reasoning
+    appendProgress
   );
 
   return result;
@@ -305,65 +225,12 @@ interface PostResultContext {
   skippedSteps?: string[];
 }
 
-function formatReasoningMarkdown(
-  issueDescription: string,
-  reasoning: ReasoningStep[],
-  result: AnalysisResult
-): string {
-  const inputPreview =
-    issueDescription.length > 500 ? issueDescription.slice(0, 500) + '…' : issueDescription;
-
-  const stepsMd = reasoning
-    .map((r, i) => `### Step ${i + 1}: ${r.step}\n\n**Output:** ${r.output}`)
-    .join('\n\n');
-
-  const resultSummary =
-    result.kind === 'high_confidence'
-      ? `High confidence: fixed in v${result.version} (PR #${(result as { prNumber: number }).prNumber})`
-      : result.kind === 'medium_confidence'
-        ? `Medium confidence: v${result.version} (PR #${(result as { prNumber: number }).prNumber})`
-        : result.kind === 'clarification'
-          ? `Clarification: ${result.message}`
-          : result.kind;
-
-  return `# WIF Reasoning Document
-
-## Input
-
-\`\`\`
-${inputPreview}
-\`\`\`
-
-## Steps Taken
-
-${stepsMd}
-
-## Final Result
-
-${resultSummary}
-`;
-}
-
-async function uploadReasoning(
-  tools: AnalysisTools,
-  issueDescription: string,
-  reasoning: ReasoningStep[],
-  result: AnalysisResult
-): Promise<void> {
-  const markdown = formatReasoningMarkdown(issueDescription, reasoning, result);
-  await tools.uploadFileToThread('reasoning.md', markdown).catch((err) => {
-    console.warn('Failed to upload reasoning document:', err);
-  });
-}
-
 async function postResult(
   tools: AnalysisTools,
   progressTs: string | undefined,
   result: AnalysisResult,
   ctx: PostResultContext,
-  appendProgress: (line: string) => Promise<void>,
-  issueDescription: string,
-  reasoning: ReasoningStep[]
+  appendProgress: (line: string) => Promise<void>
 ): Promise<void> {
   const checked =
     ctx.firstRelease && ctx.lastRelease && ctx.repo
@@ -424,7 +291,6 @@ async function postResult(
 
   await appendProgress('Done.');
   await tools.postNewSlackMessage(responseText);
-  await uploadReasoning(tools, issueDescription, reasoning, result);
 }
 
 function normalizeVersion(v: string): string {
