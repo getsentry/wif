@@ -13,6 +13,7 @@ export async function withReactionFeedback<T>(
 ): Promise<T> {
   const { slackClient, channel, ts, threadTs } = ctx;
 
+  await slackClient.reactions.remove({ channel, timestamp: ts, name: 'hourglass' }).catch(() => {});
   await slackClient.reactions.add({ channel, timestamp: ts, name: 'eyes' });
 
   try {

@@ -56,6 +56,11 @@ describe('processSlackWebhook', () => {
       slackClient: mockSlackClient as never,
     });
 
+    expect(mockSlackClient.reactions.remove).toHaveBeenNthCalledWith(1, {
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'hourglass',
+    });
     expect(mockSlackClient.reactions.add).toHaveBeenNthCalledWith(1, {
       channel: 'C123',
       timestamp: '1234567890.123456',
@@ -107,6 +112,11 @@ describe('processSlackWebhook', () => {
       })
     ).rejects.toThrow('Analysis failed');
 
+    expect(mockSlackClient.reactions.remove).toHaveBeenNthCalledWith(1, {
+      channel: 'C123',
+      timestamp: '1234567890.123456',
+      name: 'hourglass',
+    });
     expect(mockSlackClient.reactions.add).toHaveBeenNthCalledWith(1, {
       channel: 'C123',
       timestamp: '1234567890.123456',

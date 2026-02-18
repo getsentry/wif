@@ -92,5 +92,40 @@ describe('app integration', () => {
       expect(res.status).toBe(200);
       expect(res.text).toBe('OK');
     });
+
+    it('adds hourglass emoji when app_mention is queued', async () => {
+      const mockSlackClient = {
+        reactions: {
+          add: vi.fn().mockResolvedValue({ ok: true }),
+        },
+      };
+      const app = createApp({ slackClient: mockSlackClient as never });
+      const body = {
+        type: 'event_callback',
+        event: {
+          type: 'app_mention',
+          channel: 'C123',
+          ts: '1234567890.123456',
+          text: 'analyze this',
+        },
+      };
+      const bodyStr = JSON.stringify(body);
+      const signature = signSlackRequest(SIGNING_SECRET, bodyStr);
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+
+      const res = await request(app)
+        .post('/api/webhooks/slack')
+        .send(bodyStr)
+        .set('Content-Type', 'application/json')
+        .set('x-slack-signature', signature)
+        .set('x-slack-request-timestamp', timestamp);
+
+      expect(res.status).toBe(200);
+      expect(mockSlackClient.reactions.add).toHaveBeenCalledWith({
+        channel: 'C123',
+        timestamp: '1234567890.123456',
+        name: 'hourglass',
+      });
+    });
   });
 });
