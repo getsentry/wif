@@ -17,6 +17,9 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY prompts ./prompts
 
+# Symlink the Northflank-mounted secret so Sentry CLI can find it
+RUN if [ -f /secrets/.sentryclirc ]; then ln -sf /secrets/.sentryclirc ~/.sentryclirc; fi
+
 # Build TypeScript
 RUN pnpm run build
 
