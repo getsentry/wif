@@ -24,11 +24,17 @@ export async function analyzeIssue(
   tools: AnalysisTools,
   subtasks: AnalysisSubtasks
 ): Promise<AnalysisResult> {
-  const progressTs = await tools.postNewSlackMessage('Analyzing…');
+  let progressText = 'Analyzing…';
+  const progressTs = await tools.postNewSlackMessage(progressText);
+
+  const appendProgress = async (line: string): Promise<void> => {
+    progressText = progressText + '\n\n' + line;
+    await tools.updateSlackMessage(progressTs, progressText);
+  };
 
   const extractResult = await subtasks.extractRequest(issueDescription);
   if (extractResult.kind === 'clarification') {
-    await tools.updateSlackMessage(progressTs, extractResult.message);
+    await appendProgress(extractResult.message);
     await tools.postNewSlackMessage(extractResult.message);
     return { kind: 'clarification', message: extractResult.message };
   }
@@ -37,7 +43,7 @@ export async function analyzeIssue(
 
   const resolveResult = await subtasks.resolveRepository(sdk, issueDescription);
   if (resolveResult.kind === 'clarification') {
-    await tools.updateSlackMessage(progressTs, resolveResult.message);
+    await appendProgress(resolveResult.message);
     await tools.postNewSlackMessage(resolveResult.message);
     return { kind: 'clarification', message: resolveResult.message };
   }
@@ -47,7 +53,7 @@ export async function analyzeIssue(
   const skippedSteps: string[] = [];
 
   if (links && links.length > 0) {
-    await tools.updateSlackMessage(progressTs, 'Checking linked issues…');
+    await appendProgress('Checking linked issues…');
     const linkResult = await subtasks.checkExtractedLinks(links, version, repo, problem);
     if (linkResult.kind === 'high_confidence') {
       const result: AnalysisResult = {
@@ -57,14 +63,20 @@ export async function analyzeIssue(
         prLink: linkResult.prLink,
         prNumber: linkResult.prNumber,
       };
-      await postResult(tools, progressTs, result, {
-        repo,
-        firstRelease: linkResult.version,
-        lastRelease: linkResult.version,
-        releaseCount: 1,
-        evaluatedPrs: [prLinkMarkdown(repo, linkResult.prNumber)],
-        skippedSteps,
-      });
+      await postResult(
+        tools,
+        progressTs,
+        result,
+        {
+          repo,
+          firstRelease: linkResult.version,
+          lastRelease: linkResult.version,
+          releaseCount: 1,
+          evaluatedPrs: [prLinkMarkdown(repo, linkResult.prNumber)],
+          skippedSteps,
+        },
+        appendProgress
+      );
       return result;
     }
     if (linkResult.skippedLinks?.length) {
@@ -74,18 +86,24 @@ export async function analyzeIssue(
     }
   }
 
-  await tools.updateSlackMessage(progressTs, `Resolving releases for ${repo} after v${version}…`);
+  await appendProgress(`Resolving releases for ${repo} after v${version}…`);
 
   const fetchResult = await subtasks.fetchReleaseRange(repo, version);
 
   if (fetchResult.kind === 'too_old') {
     const result: AnalysisResult = { kind: 'too_old', message: fetchResult.message };
-    await postResult(tools, progressTs, result, {
-      repo,
-      version,
-      releaseCount: 0,
-      skippedSteps,
-    });
+    await postResult(
+      tools,
+      progressTs,
+      result,
+      {
+        repo,
+        version,
+        releaseCount: 0,
+        skippedSteps,
+      },
+      appendProgress
+    );
     return result;
   }
 
@@ -94,12 +112,18 @@ export async function analyzeIssue(
       kind: 'already_latest',
       message: fetchResult.message,
     };
-    await postResult(tools, progressTs, result, {
-      repo,
-      version,
-      releaseCount: 0,
-      skippedSteps,
-    });
+    await postResult(
+      tools,
+      progressTs,
+      result,
+      {
+        repo,
+        version,
+        releaseCount: 0,
+        skippedSteps,
+      },
+      appendProgress
+    );
     return result;
   }
 
@@ -108,7 +132,7 @@ export async function analyzeIssue(
       kind: 'invalid_version',
       message: fetchResult.message,
     };
-    await postResult(tools, progressTs, result, { repo, version, skippedSteps });
+    await postResult(tools, progressTs, result, { repo, version, skippedSteps }, appendProgress);
     return result;
   }
 
@@ -117,7 +141,7 @@ export async function analyzeIssue(
       kind: 'fetch_failed',
       message: fetchResult.message,
     };
-    await postResult(tools, progressTs, result, { repo, version, skippedSteps });
+    await postResult(tools, progressTs, result, { repo, version, skippedSteps }, appendProgress);
     return result;
   }
 
@@ -125,13 +149,12 @@ export async function analyzeIssue(
   const firstRelease = releases[0]?.tag ?? version;
   const lastReleaseInRange = releases[releases.length - 1]?.tag ?? version;
 
-  await tools.updateSlackMessage(
-    progressTs,
+  await appendProgress(
     `Scanning releases \`${firstRelease}\`–\`${lastReleaseInRange}\` (\`${releases.length}\` releases)…`
   );
 
   const scanResult = await subtasks.scanReleaseNotes(releases, problem, repo, (done, total) => {
-    tools.updateSlackMessage(progressTs, `Scanned \`${done}\` of \`${total}\` releases…`);
+    appendProgress(`Scanned \`${done}\` of \`${total}\` releases…`);
   });
 
   const result = mapScanResultToAnalysisResult(scanResult);
@@ -139,20 +162,26 @@ export async function analyzeIssue(
     result.kind === 'high_confidence'
       ? result.version
       : (releases[releases.length - 1]?.tag ?? version);
-  await postResult(tools, progressTs, result, {
-    repo,
-    firstRelease,
-    lastRelease,
-    releaseCount: releases.length,
-    version,
-    evaluatedPrs:
-      result.kind === 'high_confidence'
-        ? [prLinkMarkdown(repo, result.prNumber)]
-        : result.kind === 'medium_confidence'
-          ? result.candidates.map((c) => prLinkMarkdown(repo, c.prNumber))
-          : [],
-    skippedSteps,
-  });
+  await postResult(
+    tools,
+    progressTs,
+    result,
+    {
+      repo,
+      firstRelease,
+      lastRelease,
+      releaseCount: releases.length,
+      version,
+      evaluatedPrs:
+        result.kind === 'high_confidence'
+          ? [prLinkMarkdown(repo, result.prNumber)]
+          : result.kind === 'medium_confidence'
+            ? result.candidates.map((c) => prLinkMarkdown(repo, c.prNumber))
+            : [],
+      skippedSteps,
+    },
+    appendProgress
+  );
 
   return result;
 }
@@ -199,7 +228,8 @@ async function postResult(
   tools: AnalysisTools,
   progressTs: string | undefined,
   result: AnalysisResult,
-  ctx: PostResultContext
+  ctx: PostResultContext,
+  appendProgress: (line: string) => Promise<void>
 ): Promise<void> {
   const checked =
     ctx.firstRelease && ctx.lastRelease && ctx.repo
@@ -258,7 +288,7 @@ async function postResult(
       break;
   }
 
-  await tools.updateSlackMessage(progressTs, 'Done.');
+  await appendProgress('Done.');
   await tools.postNewSlackMessage(responseText);
 }
 

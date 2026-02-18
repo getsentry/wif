@@ -48,11 +48,12 @@ Pseudo-code signatures for tools used by subtasks. Implementations MAY vary.
 - **Token efficiency.** The agent MUST minimize the amount of text held in context at any given time. The agent SHOULD prefer compact summaries over raw content. If any single PR description exceeds 20 000 tokens, the agent SHOULD summarize it before scoring.
 - **Repository-first.** The agent MUST resolve which GitHub repository to query before fetching any release data.
 - **Show your work.** The agent MUST output reasoning alongside the answer so the support engineer can verify.
-- **Progress reporting.** The agent MUST keep the support engineer informed by appending status updates to a progress-thread message via `update_slack_message`. Required checkpoints:
+- **Progress reporting.** The agent MUST keep the support engineer informed by **appending** status updates to a progress-thread message via `update_slack_message`. Each update MUST be appended with a newline (not replace the previous content). Required checkpoints:
   - Subtask 1 start: "Analyzing…"
   - Subtask 3 (if links exist): "Checking linked issues…"
   - Subtask 5 start: "Scanning releases `<first>`–`<last>` (`<N>` releases)…"
   - Subtask 5 between batches (OPTIONAL): "Scanned `<done>` of `<total>` releases…"
+  - Final: "Done."
 - **Graceful degradation.** If a tool call fails, the agent MUST NOT crash. The agent SHOULD log the failure, skip the step, and continue with reduced confidence. The final answer MUST note which steps were skipped and why. If critical steps fail (e.g., cannot resolve repository), the agent MUST defer to SDK maintainers with an explanation.
 
 ---

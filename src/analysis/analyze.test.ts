@@ -78,6 +78,25 @@ describe('analyzeIssue', () => {
     );
   });
 
+  it('appends progress updates instead of replacing', async () => {
+    const tools = makeMockTools();
+    const subtasks = makeMockSubtasks();
+    await analyzeIssue('Some issue', tools, subtasks);
+
+    const updateCalls = (tools.updateSlackMessage as ReturnType<typeof vi.fn>).mock.calls;
+    expect(updateCalls.length).toBeGreaterThanOrEqual(2);
+
+    const firstUpdate = updateCalls[0][1] as string;
+    expect(firstUpdate).toMatch(/^Analyzing…\n\n/);
+    expect(firstUpdate).toContain('Resolving releases');
+
+    const lastUpdate = updateCalls[updateCalls.length - 1][1] as string;
+    expect(lastUpdate).toContain('Analyzing…');
+    expect(lastUpdate).toContain('Resolving releases');
+    expect(lastUpdate).toContain('Scanning releases');
+    expect(lastUpdate).toContain('Done.');
+  });
+
   it('returns clarification when extractRequest needs more info', async () => {
     const tools = makeMockTools();
     const subtasks = makeMockSubtasks({
