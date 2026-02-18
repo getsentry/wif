@@ -274,7 +274,8 @@ describe('analyzeIssue', () => {
     expect(finalMessage).toContain('[PR #100]');
     expect(finalMessage).toContain('[PR #101]');
     expect(finalMessage).toContain('[PR #102]');
-    expect(finalMessage).not.toContain('[PR #103]');
+    expect(finalMessage).toContain('[PR #103]'); // in trace (Relevant PRs evaluated)
+    expect(finalMessage).not.toContain('4. **'); // candidates list capped at 3
   });
 
   it('shows only available candidates when fewer than 3 medium-confidence matches', async () => {

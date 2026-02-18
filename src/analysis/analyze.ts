@@ -177,7 +177,7 @@ export async function analyzeIssue(
         result.kind === 'high_confidence'
           ? [prLinkMarkdown(repo, result.prNumber)]
           : result.kind === 'medium_confidence'
-            ? result.candidates.slice(0, 3).map((c) => prLinkMarkdown(repo, c.prNumber))
+            ? result.candidates.map((c) => prLinkMarkdown(repo, c.prNumber))
             : [],
       skippedSteps,
     },
