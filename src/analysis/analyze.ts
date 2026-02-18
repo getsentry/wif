@@ -1,6 +1,9 @@
+import * as Sentry from '@sentry/node';
 import type { AnalysisSubtasks, ScanReleaseNotesOutput } from './subtasks/index.js';
 import type { AnalysisTools } from './tools/index.js';
 import { prLinkMarkdown } from './utils.js';
+
+const SENTRY_TRACE_BASE_URL = 'https://sentry-sdks.sentry.io/explore/traces/trace';
 
 export type AnalysisResult = { message: string } & (
   | { kind: 'high_confidence'; version: string; prLink: string; prNumber: number; reason: string }
@@ -25,6 +28,8 @@ export async function analyzeIssue(
   tools: AnalysisTools,
   subtasks: AnalysisSubtasks
 ): Promise<AnalysisResult> {
+  const traceId = Sentry.getActiveSpan()?.spanContext().traceId;
+
   let progressText = 'Analyzing…';
   const progressTs = await tools.postNewSlackMessage(progressText);
 
@@ -76,6 +81,7 @@ export async function analyzeIssue(
           releaseCount: 1,
           evaluatedPrs: [prLinkMarkdown(repo, linkResult.prNumber)],
           skippedSteps,
+          traceId,
         },
         appendProgress
       );
@@ -103,6 +109,7 @@ export async function analyzeIssue(
         version,
         releaseCount: 0,
         skippedSteps,
+        traceId,
       },
       appendProgress
     );
@@ -123,6 +130,7 @@ export async function analyzeIssue(
         version,
         releaseCount: 0,
         skippedSteps,
+        traceId,
       },
       appendProgress
     );
@@ -134,7 +142,13 @@ export async function analyzeIssue(
       kind: 'invalid_version',
       message: fetchResult.message,
     };
-    await postResult(tools, progressTs, result, { repo, version, skippedSteps }, appendProgress);
+    await postResult(
+      tools,
+      progressTs,
+      result,
+      { repo, version, skippedSteps, traceId },
+      appendProgress
+    );
     return result;
   }
 
@@ -143,7 +157,13 @@ export async function analyzeIssue(
       kind: 'fetch_failed',
       message: fetchResult.message,
     };
-    await postResult(tools, progressTs, result, { repo, version, skippedSteps }, appendProgress);
+    await postResult(
+      tools,
+      progressTs,
+      result,
+      { repo, version, skippedSteps, traceId },
+      appendProgress
+    );
     return result;
   }
 
@@ -182,6 +202,7 @@ export async function analyzeIssue(
             ? result.candidates.map((c) => prLinkMarkdown(repo, c.prNumber))
             : [],
       skippedSteps,
+      traceId,
     },
     appendProgress
   );
@@ -228,6 +249,7 @@ interface PostResultContext {
   version?: string;
   evaluatedPrs?: string[];
   skippedSteps?: string[];
+  traceId?: string;
 }
 
 async function postResult(
@@ -300,6 +322,11 @@ async function postResult(
     case 'clarification':
       responseText = result.message + (skipped ? `\n\n${skipped}` : '');
       break;
+  }
+
+  if (ctx.traceId) {
+    const traceUrl = `${SENTRY_TRACE_BASE_URL}/${ctx.traceId}`;
+    responseText += `\n\n[View Sentry trace](${traceUrl})`;
   }
 
   await appendProgress('Done.');

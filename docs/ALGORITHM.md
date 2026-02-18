@@ -198,6 +198,12 @@ When scanning for bug fixes, the agent MUST prioritize "Fixes" sections. "Featur
 
 The agent MUST format and post the result according to the confidence level.
 
+**Sentry trace link:** The agent SHOULD include a link to the active Sentry trace in every final result message. The trace ID is obtained at the start of the workflow via `Sentry.getActiveSpan()?.spanContext().traceId`. When present, the link MUST be appended as the last line of the message:
+
+```
+[View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
+```
+
 ### High confidence
 
 The agent MUST report the fix version with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability. The agent MUST include a `Confidence: **High**` line followed by the reason on the same line after the main finding.
@@ -207,6 +213,8 @@ The agent MUST report the fix version with supporting evidence. Output MUST use 
 Confidence: **High** — <reason>
 
 Checked: releases <first>–<last> in <repo>.
+
+[View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
 
 `<first>`–`<last>` MUST reflect the **actual** range scanned. When the agent exits early after finding a high-confidence fix, `<last>` is the version where the fix was found, not the latest release in the fetched range. "Relevant PRs evaluated" is shown only when **more than one** PR was evaluated; omit it when there is a single PR.
@@ -228,6 +236,8 @@ Deferring to SDK maintainers to confirm.
 Confidence: **Medium** — <reason>
 
 Checked: releases <first>–<last> in <repo>.
+
+[View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
 
 If fewer than 3 candidates exist, list only those found. "Relevant PRs evaluated" is shown only when more than one PR was evaluated.
@@ -242,6 +252,8 @@ Deferring to SDK maintainers for investigation.
 
 Checked: releases <first>–<last> in <repo>.
 Release notes reviewed: <count>.
+
+[View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
 
 ### Too old
@@ -252,6 +264,8 @@ The agent MUST report that the version is too far behind:
 The reported version (v<version>) is more than 100 releases behind
 the latest stable release. Unable to look this up efficiently.
 Deferring to SDK maintainers.
+
+[View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
 
 In all cases, the agent MUST include the reasoning trace (which releases were checked, which PRs were evaluated, and why the conclusion was reached). This allows the support engineer to validate the answer. Use Slack markdown for readability: `[PR #N](url)` for links and **bold** for key terms (e.g., version).
