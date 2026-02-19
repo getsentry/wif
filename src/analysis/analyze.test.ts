@@ -362,6 +362,30 @@ describe('analyzeIssue', () => {
     expect(finalMessage).not.toContain('2. *');
   });
 
+  it('includes known version range when already_latest', async () => {
+    const tools = makeMockTools();
+    const subtasks = makeMockSubtasks({
+      fetchReleaseRange: vi.fn().mockResolvedValue({
+        kind: 'already_latest',
+        message:
+          'No releases found after the reported version. Known stable versions range from `1.0.0` to `2.19.2`.',
+      }),
+    });
+
+    const result = await analyzeIssue('Python SDK v7', tools, subtasks);
+
+    expect(result.kind).toBe('already_latest');
+    expect(result.message).toContain('Known stable versions range from');
+
+    const finalContent = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1
+    )?.[0];
+    const finalMessage = getMessageText(finalContent as SlackMessageContent);
+    expect(finalMessage).toContain('Known stable versions range from');
+    expect(finalMessage).toContain('1.0.0');
+    expect(finalMessage).toContain('2.19.2');
+  });
+
   it('works without Slack posting when tools are no-ops', async () => {
     const tools = makeMockTools({
       postNewSlackMessage: vi.fn().mockResolvedValue(undefined),
