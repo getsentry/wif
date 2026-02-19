@@ -95,7 +95,8 @@ export function createAITools() {
 
     async filterRelevantEntries(
       releaseNotes: string,
-      problem: string
+      problem: string,
+      issueDescription: string
     ): Promise<Array<{ release: string; line: string; pr_reference?: string }>> {
       return withToolSpan('filterRelevantEntries', { problem }, async () => {
         const promptPath = join(
@@ -110,7 +111,7 @@ export function createAITools() {
         const result = await generateObject({
           schema: filterRelevantEntriesSchema,
           system: systemPrompt,
-          prompt: `Problem: ${problem}\n\nRelease notes:\n${releaseNotes}`,
+          prompt: `Problem: ${problem}\n\nIssue description:\n${issueDescription}\n\nRelease notes:\n${releaseNotes}`,
         });
         return result.entries;
       });
@@ -119,7 +120,8 @@ export function createAITools() {
     async scorePrConfidence(
       prTitle: string,
       prBody: string | null,
-      problem: string
+      problem: string,
+      issueDescription: string
     ): Promise<{ level: 'high' | 'medium' | 'low'; reason: string }> {
       return withToolSpan('scorePrConfidence', { prTitle, problem }, async () => {
         const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'score-pr-confidence.md');
@@ -128,7 +130,7 @@ export function createAITools() {
         const result = await generateObject({
           schema: scorePrConfidenceSchema,
           system: systemPrompt,
-          prompt: `Problem: ${problem}\n\nPR Title: ${prTitle}\n\nPR Description:\n${body}`,
+          prompt: `Problem: ${problem}\n\nIssue description:\n${issueDescription}\n\nPR Title: ${prTitle}\n\nPR Description:\n${body}`,
         });
         return { level: result.confidence, reason: result.reason };
       });

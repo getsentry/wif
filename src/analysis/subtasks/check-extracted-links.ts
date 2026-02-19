@@ -37,7 +37,8 @@ export function createCheckExtractedLinksSubtask(
     links: string[],
     version: string,
     repo: string,
-    problem: string
+    problem: string,
+    issueDescription: string
   ): Promise<CheckExtractedLinksOutput> {
     const skippedLinks: Array<{ url: string; reason: string }> = [];
 
@@ -56,7 +57,8 @@ export function createCheckExtractedLinksSubtask(
         const { level, reason } = await tools.scorePrConfidence(
           prDetails.title,
           prDetails.body,
-          problem
+          problem,
+          issueDescription
         );
 
         if (level === 'high') {

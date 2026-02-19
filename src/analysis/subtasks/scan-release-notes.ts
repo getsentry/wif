@@ -41,6 +41,7 @@ export function createScanReleaseNotesSubtask(
     releases: GitHubRelease[],
     problem: string,
     repo: string,
+    issueDescription: string,
     onProgress?: (done: number, total: number) => void
   ): Promise<ScanReleaseNotesOutput> {
     const candidates: ScanCandidate[] = [];
@@ -49,7 +50,7 @@ export function createScanReleaseNotesSubtask(
       const batch = releases.slice(i, i + BATCH_SIZE);
       const releaseNotes = batch.map((r) => `## ${r.tag}\n${r.body ?? ''}`).join('\n\n');
 
-      const entries = await tools.filterRelevantEntries(releaseNotes, problem);
+      const entries = await tools.filterRelevantEntries(releaseNotes, problem, issueDescription);
 
       for (const entry of entries) {
         const prNumber = extractPrNumber(entry.pr_reference) ?? extractPrNumber(entry.line);
@@ -61,7 +62,8 @@ export function createScanReleaseNotesSubtask(
         const { level, reason } = await tools.scorePrConfidence(
           prDetails.title,
           prDetails.body,
-          problem
+          problem,
+          issueDescription
         );
 
         if (level === 'high') {

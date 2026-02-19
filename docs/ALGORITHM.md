@@ -25,25 +25,26 @@ Implementations MAY combine Subtask 1 and Subtask 2 into a single LLM call when 
 
 Pseudo-code signatures for tools used by subtasks. Implementations MAY vary.
 
-| Tool                           | Signature                                                                                            | Description                                                                                                                                                                                                    |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `extract_request`              | `extract_request(message: string) -> { sdk, version, problem, links? }`                              | LLM: extract sdk, version, problem, and optional links from support engineer message.                                                                                                                          |
-| `lookup_sdk_repository`        | `lookup_sdk_repository(sdk: string) -> string or null`                                               | Map SDK identifier to `owner/repo` slug. Returns null if unknown.                                                                                                                                              |
-| `resolve_repository_ambiguous` | `resolve_repository_ambiguous(context: string) -> string`                                            | LLM: resolve repository when lookup is ambiguous.                                                                                                                                                              |
-| `get_issue_resolution`         | `get_issue_resolution(issue_url: string) -> { fixed_in_version?, pr_number? }`                       | GitHub API: check if linked issue/PR was fixed and in which release.                                                                                                                                           |
-| `get_releases_from_version`    | `get_releases_from_version(repo: string, from_version: string) -> Release[]`                         | GitHub API: list stable releases strictly after `from_version` (oldest → newest). MUST exclude pre-release versions. SHOULD use server-side filtering where the API supports it; otherwise filter client-side. |
-| `filter_relevant_entries`      | `filter_relevant_entries(release_notes: string, problem: string) -> (release, line, pr_reference)[]` | LLM: identify release note lines relevant to `problem`.                                                                                                                                                        |
-| `get_pr_details`               | `get_pr_details(repo: string, pr_number: int) -> PRDetails`                                          | GitHub API: fetch PR title and description.                                                                                                                                                                    |
-| `score_pr_confidence`          | `score_pr_confidence(pr: PRDetails, problem: string) -> { level: Confidence, reason: string }`       | LLM: assign high/medium/low confidence that PR fixes `problem`, plus a one-sentence explanation of why.                                                                                                        |
-| `fetch_thread_messages`        | `fetch_thread_messages(channel: string, thread_ts: string) -> string`                                | Slack: fetch all messages in a thread via `conversations.replies`. Returns formatted text (e.g. `User: message`) for the full thread. Used for input collection before analysis.                               |
-| `post_slack_message`           | `post_slack_message(text: string) -> message_id`                                                     | Slack: post new message to thread.                                                                                                                                                                             |
-| `update_slack_message`         | `update_slack_message(message_id: string, text: string) -> void`                                     | Slack: update existing message.                                                                                                                                                                                |
+| Tool                           | Signature                                                                                                                       | Description                                                                                                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `extract_request`              | `extract_request(message: string) -> { sdk, version, problem, links? }`                                                         | LLM: extract sdk, version, problem, and optional links from support engineer message.                                                                                                                              |
+| `lookup_sdk_repository`        | `lookup_sdk_repository(sdk: string) -> string or null`                                                                          | Map SDK identifier to `owner/repo` slug. Returns null if unknown.                                                                                                                                                  |
+| `resolve_repository_ambiguous` | `resolve_repository_ambiguous(context: string) -> string`                                                                       | LLM: resolve repository when lookup is ambiguous.                                                                                                                                                                  |
+| `get_issue_resolution`         | `get_issue_resolution(issue_url: string) -> { fixed_in_version?, pr_number? }`                                                  | GitHub API: check if linked issue/PR was fixed and in which release.                                                                                                                                               |
+| `get_releases_from_version`    | `get_releases_from_version(repo: string, from_version: string) -> Release[]`                                                    | GitHub API: list stable releases strictly after `from_version` (oldest → newest). MUST exclude pre-release versions. SHOULD use server-side filtering where the API supports it; otherwise filter client-side.     |
+| `filter_relevant_entries`      | `filter_relevant_entries(release_notes: string, problem: string, issue_description: string) -> (release, line, pr_reference)[]` | LLM: identify release note lines relevant to `problem`. `issue_description` is the full raw thread and MUST be passed alongside `problem` to improve precision.                                                    |
+| `get_pr_details`               | `get_pr_details(repo: string, pr_number: int) -> PRDetails`                                                                     | GitHub API: fetch PR title and description.                                                                                                                                                                        |
+| `score_pr_confidence`          | `score_pr_confidence(pr: PRDetails, problem: string, issue_description: string) -> { level: Confidence, reason: string }`       | LLM: assign high/medium/low confidence that PR fixes `problem`. `issue_description` is the full raw thread and MUST be passed alongside `problem` to improve precision. Returns a one-sentence explanation of why. |
+| `fetch_thread_messages`        | `fetch_thread_messages(channel: string, thread_ts: string) -> string`                                                           | Slack: fetch all messages in a thread via `conversations.replies`. Returns formatted text (e.g. `User: message`) for the full thread. Used for input collection before analysis.                                   |
+| `post_slack_message`           | `post_slack_message(text: string) -> message_id`                                                                                | Slack: post new message to thread.                                                                                                                                                                                 |
+| `update_slack_message`         | `update_slack_message(message_id: string, text: string) -> void`                                                                | Slack: update existing message.                                                                                                                                                                                    |
 
 ---
 
 ## Design Principles
 
 - **Lazy loading.** The agent MUST only fetch data it actually needs for the current decision. The agent MUST NOT bulk-load data "just in case."
+- **Rich context scoring.** The agent MUST pass both the extracted `problem` summary and the full `issue_description` (the raw Slack thread) to all LLM filtering and scoring calls (`filter_relevant_entries`, `score_pr_confidence`). The raw thread preserves specific symptoms, error messages, and reproduction details that the extracted summary may lose, reducing false positives in confidence scoring.
 - **Early exit.** The agent MUST stop as soon as it is confident in a result. The agent MUST NOT process remaining candidates after a high-confidence match.
 - **Token efficiency.** The agent MUST minimize the amount of text held in context at any given time. The agent SHOULD prefer compact summaries over raw content. If any single PR description exceeds 20 000 tokens, the agent SHOULD summarize it before scoring.
 - **Repository-first.** The agent MUST resolve which GitHub repository to query before fetching any release data.
@@ -87,7 +88,7 @@ See [Appendix A](#appendix-a--example-requests) for example requests.
 
 **Tools used:** `lookup_sdk_repository`; MAY use `resolve_repository_ambiguous` for ambiguous cases.
 
-The agent MUST map `sdk` to a GitHub repository **before** any data fetching.
+The agent MUST map `sdk` to a GitHub repository **before** any data fetching. When `lookup_sdk_repository` returns null, the agent MUST call `resolve_repository_ambiguous` with the full `issue_description` (the raw thread) as context, so the LLM can use all available signals to resolve the repository.
 
 | SDK identifier          | Repository                |
 | ----------------------- | ------------------------- |
@@ -111,7 +112,7 @@ This subtask MUST run **before** fetching any release range or release notes. It
 If the request included GitHub `links` (issue or PR URLs):
 
 1. The agent MUST check whether the linked issue/PR was resolved in a release **after** `version` via `get_issue_resolution`.
-2. If yes, the agent MUST fetch the PR details via `get_pr_details` and score its confidence via `score_pr_confidence`.
+2. If yes, the agent MUST fetch the PR details via `get_pr_details` and score its confidence via `score_pr_confidence`, passing both `problem` and `issue_description`.
 3. If the linked issue's fix is in a release **at or before** `version`, the agent MUST discard it — the user already has that version and the problem persists, so this is not the fix.
 4. If the link produces a **high-confidence** result, the agent MUST exit early and proceed to Subtask 6.
 5. If the link is inconclusive or discarded, the agent MUST proceed to Subtask 4.
@@ -151,9 +152,9 @@ The agent MUST perform a **linear scan** of release notes from oldest to newest.
 
 The agent MUST process releases in batches of at most 5, oldest first:
 
-1. For each batch, pass the combined release notes to `filter_relevant_entries` along with the `problem`.
+1. For each batch, pass the combined release notes to `filter_relevant_entries` along with the `problem` and `issue_description`.
 2. For any relevant entries returned, fetch PR details via `get_pr_details`.
-3. Score each PR via `score_pr_confidence`.
+3. Score each PR via `score_pr_confidence`, passing both `problem` and `issue_description`.
 4. The agent MUST accumulate all medium-confidence and above candidates across batches.
 5. **Early exit:** If a high-confidence match is found, the agent MUST stop and proceed to Subtask 6. The agent MUST NOT fetch the next batch.
 6. If no high-confidence match is found, continue to the next batch.
