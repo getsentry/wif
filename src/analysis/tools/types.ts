@@ -52,6 +52,12 @@ export interface AnalysisTools {
     problem: string,
     issueDescription: string
   ): Promise<ConfidenceResult>;
+  verifyPrMatch(
+    prTitle: string,
+    prBody: string | null,
+    problem: string,
+    issueDescription: string
+  ): Promise<{ confirmed: boolean; reason: string }>;
   updateSlackMessage(ts: string | undefined, content: SlackMessageContent): Promise<void>;
   postNewSlackMessage(content: SlackMessageContent): Promise<string | undefined>;
 }

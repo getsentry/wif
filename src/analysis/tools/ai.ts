@@ -32,6 +32,15 @@ const scorePrConfidenceSchema = z.object({
   reason: z.string().describe('One-sentence explanation citing specific evidence from the PR'),
 });
 
+const verifyPrMatchSchema = z.object({
+  confirmed: z
+    .boolean()
+    .describe('Whether the PR precisely fixes the same symptom described in the issue'),
+  reason: z
+    .string()
+    .describe('One-sentence explanation citing specific evidence from both the issue and the PR'),
+});
+
 export function createAITools() {
   async function generateObject<T>(options: {
     schema: zType.ZodType<T>;
@@ -133,6 +142,24 @@ export function createAITools() {
           prompt: `Problem: ${problem}\n\nIssue description:\n${issueDescription}\n\nPR Title: ${prTitle}\n\nPR Description:\n${body}`,
         });
         return { level: result.confidence, reason: result.reason };
+      });
+    },
+
+    async verifyPrMatch(
+      prTitle: string,
+      prBody: string | null,
+      problem: string,
+      issueDescription: string
+    ): Promise<{ confirmed: boolean; reason: string }> {
+      return withToolSpan('verifyPrMatch', { prTitle, problem }, async () => {
+        const promptPath = join(__dirname, '..', '..', '..', 'prompts', 'verify-pr-match.md');
+        const systemPrompt = await readFile(promptPath, 'utf-8');
+        const body = (prBody ?? '').slice(0, 80000);
+        return generateObject({
+          schema: verifyPrMatchSchema,
+          system: systemPrompt,
+          prompt: `Problem: ${problem}\n\nIssue description:\n${issueDescription}\n\nPR Title: ${prTitle}\n\nPR Description:\n${body}`,
+        });
       });
     },
   };

@@ -35,7 +35,10 @@ function extractPrNumber(prRef: string | undefined): number | null {
 }
 
 export function createScanReleaseNotesSubtask(
-  tools: Pick<AnalysisTools, 'filterRelevantEntries' | 'getPrDetails' | 'scorePrConfidence'>
+  tools: Pick<
+    AnalysisTools,
+    'filterRelevantEntries' | 'getPrDetails' | 'scorePrConfidence' | 'verifyPrMatch'
+  >
 ) {
   return async function scanReleaseNotes(
     releases: GitHubRelease[],
@@ -67,16 +70,32 @@ export function createScanReleaseNotesSubtask(
         );
 
         if (level === 'high') {
-          return {
-            kind: 'high_confidence',
-            candidate: {
-              version: entry.release,
-              prNumber,
-              prLink: prLinkFor(repo, prNumber),
-              confidence: 'high',
-              reason,
-            },
-          };
+          const verification = await tools.verifyPrMatch(
+            prDetails.title,
+            prDetails.body,
+            problem,
+            issueDescription
+          );
+          if (verification.confirmed) {
+            return {
+              kind: 'high_confidence',
+              candidate: {
+                version: entry.release,
+                prNumber,
+                prLink: prLinkFor(repo, prNumber),
+                confidence: 'high',
+                reason,
+              },
+            };
+          }
+          candidates.push({
+            version: entry.release,
+            prNumber,
+            prLink: prLinkFor(repo, prNumber),
+            confidence: 'medium',
+            reason: verification.reason,
+          });
+          continue;
         }
 
         if (level === 'medium') {
