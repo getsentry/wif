@@ -118,7 +118,6 @@ export interface MediumConfidenceParams {
   repo?: string;
   reason: string;
   footer: TraceFooter;
-  maintainerMention?: string;
 }
 
 export function buildMediumConfidenceBlocks(params: MediumConfidenceParams): SlackBlock[] {
@@ -129,11 +128,8 @@ export function buildMediumConfidenceBlocks(params: MediumConfidenceParams): Sla
         params.repo && c.prNumber != null ? prLinkMrkdwn(params.repo, c.prNumber) : c.prLink
       }`
   );
-  const deferLine = params.maintainerMention
-    ? `Deferring to SDK maintainers to confirm. ${params.maintainerMention}`
-    : 'Deferring to SDK maintainers to confirm.';
   const blocks: SlackBlock[] = [
-    section(`:mag: *Potential candidates found*\n${deferLine}`),
+    section(':mag: *Potential candidates found*\nDeferring to SDK maintainers to confirm.'),
     section(candidateLines.join('\n')),
     context(`:large_yellow_circle: *Medium confidence* — ${params.reason}`),
     divider(),
@@ -146,16 +142,12 @@ export function buildMediumConfidenceBlocks(params: MediumConfidenceParams): Sla
 export interface NoResultParams {
   version: string;
   footer: TraceFooter;
-  maintainerMention?: string;
 }
 
 export function buildNoResultBlocks(params: NoResultParams): SlackBlock[] {
-  const deferLine = params.maintainerMention
-    ? `Deferring to SDK maintainers for investigation. ${params.maintainerMention}`
-    : 'Deferring to SDK maintainers for investigation.';
   const blocks: SlackBlock[] = [
     section(
-      `:thinking_face: *No fix identified*\nI wasn't able to identify a fix in releases after \`v${params.version}\`. ${deferLine}`
+      `:thinking_face: *No fix identified*\nI wasn't able to identify a fix in releases after \`v${params.version}\`. Deferring to SDK maintainers for investigation.`
     ),
     divider(),
   ];
@@ -164,16 +156,9 @@ export function buildNoResultBlocks(params: NoResultParams): SlackBlock[] {
   return blocks;
 }
 
-export function buildTooOldBlocks(
-  version: string,
-  skipped?: string,
-  maintainerMention?: string
-): SlackBlock[] {
-  const deferLine = maintainerMention
-    ? `Deferring to SDK maintainers. ${maintainerMention}`
-    : 'Deferring to SDK maintainers.';
+export function buildTooOldBlocks(version: string, skipped?: string): SlackBlock[] {
   const text =
-    `:warning: *Version too old*\nThe reported version (\`v${version}\`) is more than 100 releases behind the latest stable release. Unable to look this up efficiently.\n${deferLine}` +
+    `:warning: *Version too old*\nThe reported version (\`v${version}\`) is more than 100 releases behind the latest stable release. Unable to look this up efficiently.\nDeferring to SDK maintainers.` +
     (skipped ? `\n\n${skipped}` : '');
   return [section(text)];
 }
@@ -186,13 +171,8 @@ export function buildErrorBlocks(errorSummary: string): SlackBlock[] {
 /**
  * Simple informational message (clarification, already_latest, invalid_version, fetch_failed).
  */
-export function buildSimpleTextBlocks(
-  message: string,
-  skipped?: string,
-  maintainerMention?: string
-): SlackBlock[] {
-  const mention = maintainerMention ? ` ${maintainerMention}` : '';
-  const text = message + mention + (skipped ? `\n\n${skipped}` : '');
+export function buildSimpleTextBlocks(message: string, skipped?: string): SlackBlock[] {
+  const text = message + (skipped ? `\n\n${skipped}` : '');
   return [section(`:information_source: ${text}`)];
 }
 
