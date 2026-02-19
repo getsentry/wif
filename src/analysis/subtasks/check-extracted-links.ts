@@ -31,7 +31,10 @@ function versionAfter(fixedVersion: string, userVersion: string): boolean {
 }
 
 export function createCheckExtractedLinksSubtask(
-  tools: Pick<AnalysisTools, 'getIssueResolution' | 'getPrDetails' | 'scorePrConfidence'>
+  tools: Pick<
+    AnalysisTools,
+    'getIssueResolution' | 'getPrDetails' | 'scorePrConfidence' | 'verifyPrMatch'
+  >
 ) {
   return async function checkExtractedLinks(
     links: string[],
@@ -62,14 +65,22 @@ export function createCheckExtractedLinksSubtask(
         );
 
         if (level === 'high') {
-          const prLink = prLinkFor(repo, resolution.pr_number);
-          return {
-            kind: 'high_confidence',
-            version: resolution.fixed_in_version,
-            prNumber: resolution.pr_number,
-            prLink,
-            reason,
-          };
+          const verification = await tools.verifyPrMatch(
+            prDetails.title,
+            prDetails.body,
+            problem,
+            issueDescription
+          );
+          if (verification.confirmed) {
+            const prLink = prLinkFor(repo, resolution.pr_number);
+            return {
+              kind: 'high_confidence',
+              version: resolution.fixed_in_version,
+              prNumber: resolution.pr_number,
+              prLink,
+              reason,
+            };
+          }
         }
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
