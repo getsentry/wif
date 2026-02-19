@@ -13,7 +13,7 @@ describe('fetchThreadMessages', () => {
     vi.clearAllMocks();
   });
 
-  it('fetches and formats thread messages with user names', async () => {
+  it('fetches and formats thread messages with anonymous labels', async () => {
     const mockSlackClient = {
       conversations: {
         replies: vi.fn().mockResolvedValue({
@@ -23,12 +23,6 @@ describe('fetchThreadMessages', () => {
             { user: 'U2', text: "Let's see if @wif knows that", ts: '1234567890.123456' },
           ],
         }),
-      },
-      users: {
-        info: vi
-          .fn()
-          .mockResolvedValueOnce({ ok: true, user: { real_name: 'Phil' } })
-          .mockResolvedValueOnce({ ok: true, user: { real_name: 'Lukas' } }),
       },
     };
 
@@ -44,7 +38,7 @@ describe('fetchThreadMessages', () => {
       ts: '1234567890.123400',
       limit: 200,
     });
-    expect(result).toBe("Phil: Hey was X fixed yet?\n\nLukas: Let's see if @wif knows that");
+    expect(result).toBe("User 1: Hey was X fixed yet?\n\nUser 2: Let's see if @wif knows that");
   });
 
   it('handles pagination when thread has many messages', async () => {
@@ -62,9 +56,6 @@ describe('fetchThreadMessages', () => {
             messages: [{ user: 'U1', text: 'Second', ts: '2' }],
           }),
       },
-      users: {
-        info: vi.fn().mockResolvedValue({ ok: true, user: { real_name: 'User' } }),
-      },
     };
 
     const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1', FALLBACK);
@@ -76,25 +67,7 @@ describe('fetchThreadMessages', () => {
       limit: 200,
       cursor: 'cursor1',
     });
-    expect(result).toBe('User: First\n\nUser: Second');
-  });
-
-  it('falls back to user id when users.info fails', async () => {
-    const mockSlackClient = {
-      conversations: {
-        replies: vi.fn().mockResolvedValue({
-          ok: true,
-          messages: [{ user: 'U1', text: 'Hello', ts: '1' }],
-        }),
-      },
-      users: {
-        info: vi.fn().mockRejectedValue(new Error('User not found')),
-      },
-    };
-
-    const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1', FALLBACK);
-
-    expect(result).toBe('U1: Hello');
+    expect(result).toBe('User 1: First\n\nUser 1: Second');
   });
 
   it('returns fallback text and reports to Sentry when replies fails', async () => {
@@ -103,7 +76,6 @@ describe('fetchThreadMessages', () => {
       conversations: {
         replies: vi.fn().mockRejectedValue(apiError),
       },
-      users: { info: vi.fn() },
     };
 
     const result = await fetchThreadMessages(mockSlackClient as never, 'C123', '1', FALLBACK);

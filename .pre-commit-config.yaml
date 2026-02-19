@@ -18,23 +18,23 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
 
-  # Prettier - code formatting (runs project's pnpm prettier)
+  # Prettier - code formatting
   - repo: local
     hooks:
       - id: prettier
         name: prettier
-        entry: pnpm exec prettier --write
+        entry: pnpm format
         language: system
-        types: [javascript, ts, tsx, json, yaml, markdown]
+        pass_filenames: false
 
-  # ESLint - linting (runs project's pnpm eslint)
+  # ESLint - linting
   - repo: local
     hooks:
       - id: eslint
         name: eslint
-        entry: pnpm exec eslint --fix
+        entry: pnpm lint:fix
         language: system
-        types: [javascript, ts, tsx]
+        pass_filenames: false
 
   # TypeScript - type check
   - repo: local
