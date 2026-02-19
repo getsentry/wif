@@ -1,4 +1,5 @@
 <p align="center">
+  <img src="https://github.com/getsentry/wif/blob/main/resources/avatar.png?raw=true" alt="WIF Logo" width="200" height="200"/>
   <h1 align="center">WIF — Was It Fixed?</h1>
   <p align="center">
     An AI-powered Slack bot that answers "Was this fixed yet?" for Sentry SDK releases.
