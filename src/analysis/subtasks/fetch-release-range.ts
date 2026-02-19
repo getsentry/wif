@@ -1,3 +1,4 @@
+import { parse as semverParse } from 'semver';
 import type { GitHubRelease } from '../github.js';
 import type { AnalysisTools } from '../tools/types.js';
 
@@ -35,8 +36,21 @@ export type FetchReleaseRangeOutput =
 
 const MAX_RELEASES = 100;
 
+function describeKnownVersionRange(allReleases: GitHubRelease[]): string | null {
+  const stableVersions = allReleases
+    .map((r) => semverParse(r.tag))
+    .filter((v) => v && !v.prerelease?.length);
+
+  if (stableVersions.length === 0) return null;
+
+  const sorted = stableVersions.sort((a, b) => a!.compare(b!));
+  const oldest = sorted[0]!.version;
+  const latest = sorted[sorted.length - 1]!.version;
+  return `Known stable versions range from \`${oldest}\` to \`${latest}\`.`;
+}
+
 export function createFetchReleaseRangeSubtask(
-  tools: Pick<AnalysisTools, 'getReleasesFromVersion'>
+  tools: Pick<AnalysisTools, 'getReleasesFromVersion' | 'findAllReleases'>
 ) {
   return async function fetchReleaseRange(
     repo: string,
@@ -46,11 +60,12 @@ export function createFetchReleaseRangeSubtask(
       const releases = await tools.getReleasesFromVersion(repo, fromVersion);
 
       if (releases.length === 0) {
-        return {
-          kind: 'already_latest',
-          message:
-            'No releases found after the reported version. You may already be on the latest stable release.',
-        };
+        const allReleases = await tools.findAllReleases(repo);
+        const rangeInfo = describeKnownVersionRange(allReleases);
+        const message = rangeInfo
+          ? `No releases found after the reported version. ${rangeInfo}`
+          : 'No releases found after the reported version. You may already be on the latest stable release.';
+        return { kind: 'already_latest', message };
       }
 
       if (releases.length > MAX_RELEASES) {
