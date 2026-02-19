@@ -16,12 +16,6 @@ List of Repository to used SDK:
 - getsentry/sentry-elixir: Sentry Elixir SDK issues (Elixir, Phoenix, etc.)
 - getsentry/sentry-go: Sentry Go SDK issues (Go, Gin, Echo, etc.)
 - getsentry/sentry-rust: Sentry Rust SDK issues (Rust, Actix, Rocket, etc.)
-- getsentry/dart: Sentry Dart and Flutter SDK issues (Dart, Flutter, etc.)
-- getsentry/godot: Sentry Godot SDK
-- getsentry/sentry-kotlin-multiplatform: Issues for platforms such as JVM, Android, iOS, macOS, watchOS, tvOS that can be used on Kotlin Multiplatform
-- getsentry/sentry-native: Sentry C, C++ SDK issues
-- getsentry/sentry-unity: Sentry Unity SDK issues
-- getsentry/sentry-unreal: Sentry Unreal SDK issues
 
 Analyze the issue description and determine the most appropriate repository based on:
 
