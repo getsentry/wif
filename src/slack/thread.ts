@@ -12,7 +12,7 @@ import * as Sentry from '@sentry/node';
  * analysis can proceed with reduced context.
  */
 export async function fetchThreadMessages(
-  slackClient: Pick<webApi.WebClient, 'conversations' | 'users'>,
+  slackClient: Pick<webApi.WebClient, 'conversations'>,
   channel: string,
   threadRootTs: string,
   fallbackText: string
@@ -28,27 +28,11 @@ export async function fetchThreadMessages(
   messages.sort((a, b) => a.ts.localeCompare(b.ts));
 
   const userIds = [...new Set(messages.map((m) => m.user).filter(Boolean))] as string[];
-  const userNames = new Map<string, string>();
-
-  for (const uid of userIds) {
-    try {
-      const userResult = await slackClient.users.info({ user: uid });
-      if (userResult.ok && userResult.user) {
-        const name =
-          userResult.user.real_name ||
-          userResult.user.profile?.real_name ||
-          userResult.user.name ||
-          uid;
-        userNames.set(uid, name);
-      }
-    } catch {
-      userNames.set(uid, uid);
-    }
-  }
+  const labelMap = new Map(userIds.map((uid, i) => [uid, `User ${i + 1}`]));
 
   return messages
     .map((m) => {
-      const label = m.user ? (userNames.get(m.user) ?? m.user) : 'Unknown';
+      const label = m.user ? (labelMap.get(m.user) ?? m.user) : 'Unknown';
       return `${label}: ${m.text}`;
     })
     .join('\n\n');
@@ -69,8 +53,6 @@ async function fetchReplies(
       limit: 200,
       ...(cursor && { cursor }),
     });
-
-    console.log('debug - of slack call:', result);
 
     if (!result.ok || !result.messages) {
       throw new Error('Failed to fetch thread messages');
