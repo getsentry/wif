@@ -13,13 +13,17 @@ import type { ProgressStep } from './blocks/index.js';
 import type { AnalysisSubtasks, ScanReleaseNotesOutput } from './subtasks/index.js';
 import type { AnalysisTools } from './tools/index.js';
 
+export type HighCandidate = {
+  version: string;
+  prLink: string;
+  prNumber: number;
+  reason: string;
+};
+
 export type AnalysisResult = { message: string } & (
-  | { kind: 'high_confidence'; version: string; prLink: string; prNumber: number; reason: string }
+  | { kind: 'high_confidence'; candidates: HighCandidate[] }
   | {
       kind: 'medium_confidence';
-      version: string;
-      prLink: string;
-      prNumber: number;
       reason: string;
       candidates: Array<{ version: string; prLink: string; prNumber: number; reason: string }>;
     }
@@ -94,10 +98,14 @@ export async function analyzeIssue(
       const result: AnalysisResult = {
         message: '',
         kind: 'high_confidence',
-        version: linkResult.version,
-        prLink: linkResult.prLink,
-        prNumber: linkResult.prNumber,
-        reason: linkResult.reason,
+        candidates: [
+          {
+            version: linkResult.version,
+            prLink: linkResult.prLink,
+            prNumber: linkResult.prNumber,
+            reason: linkResult.reason,
+          },
+        ],
       };
       await postResult(
         tools,
@@ -218,7 +226,7 @@ export async function analyzeIssue(
 
   const lastRelease =
     result.kind === 'high_confidence'
-      ? result.version
+      ? result.candidates[result.candidates.length - 1].version
       : (releases[releases.length - 1]?.tag ?? version);
   await postResult(
     tools,
@@ -231,11 +239,9 @@ export async function analyzeIssue(
       releaseCount: releases.length,
       version,
       evaluatedPrNumbers:
-        result.kind === 'high_confidence'
-          ? [result.prNumber]
-          : result.kind === 'medium_confidence'
-            ? result.candidates.map((c) => c.prNumber)
-            : [],
+        result.kind === 'high_confidence' || result.kind === 'medium_confidence'
+          ? result.candidates.map((c) => c.prNumber)
+          : [],
       skippedSteps,
       traceId,
     },
@@ -250,21 +256,19 @@ function mapScanResultToAnalysisResult(scan: ScanReleaseNotesOutput): AnalysisRe
     return {
       message: '',
       kind: 'high_confidence',
-      version: scan.candidate.version,
-      prLink: scan.candidate.prLink,
-      prNumber: scan.candidate.prNumber,
-      reason: scan.candidate.reason,
+      candidates: scan.candidates.map((c) => ({
+        version: c.version,
+        prLink: c.prLink,
+        prNumber: c.prNumber,
+        reason: c.reason,
+      })),
     };
   }
   if (scan.kind === 'medium') {
-    const best = scan.candidates[0];
     return {
       message: '',
       kind: 'medium_confidence',
-      version: best.version,
-      prLink: best.prLink,
-      prNumber: best.prNumber,
-      reason: best.reason,
+      reason: scan.candidates[0].reason,
       candidates: scan.candidates.map((c) => ({
         version: c.version,
         prLink: c.prLink,
@@ -328,14 +332,14 @@ async function postResult(
   switch (result.kind) {
     case 'high_confidence':
       blocks = buildHighConfidenceBlocks({
-        version: result.version,
-        prLink: result.prLink,
+        candidates: result.candidates,
         repo: ctx.repo,
-        prNumber: result.prNumber,
-        reason: result.reason,
         footer,
       });
-      fallbackText = `Fixed in v${result.version}. See PR #${result.prNumber}.`;
+      fallbackText =
+        result.candidates.length === 1
+          ? `Fixed in v${result.candidates[0].version}. See PR #${result.candidates[0].prNumber}.`
+          : `High-confidence fixes: ${result.candidates.map((c) => `v${c.version} PR #${c.prNumber}`).join(', ')}.`;
       break;
     case 'medium_confidence': {
       blocks = buildMediumConfidenceBlocks({

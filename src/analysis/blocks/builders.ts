@@ -63,25 +63,45 @@ function buildTraceContext(footer: TraceFooter): SlackBlock | null {
   return context(parts.join(' · '));
 }
 
-export interface HighConfidenceParams {
+export interface HighConfidenceCandidate {
   version: string;
   prLink: string;
-  repo?: string;
   prNumber?: number;
   reason: string;
+}
+
+export interface HighConfidenceParams {
+  candidates: HighConfidenceCandidate[];
+  repo?: string;
   footer: TraceFooter;
 }
 
 export function buildHighConfidenceBlocks(params: HighConfidenceParams): SlackBlock[] {
-  const prText =
-    params.repo && params.prNumber != null
-      ? prLinkMrkdwn(params.repo, params.prNumber)
-      : params.prLink;
-  const blocks: SlackBlock[] = [
-    section(`:white_check_mark: *Fixed in v${normalizeVersion(params.version)}*\nSee ${prText}`),
-    context(`:large_green_circle: *High confidence* — ${params.reason}`),
-    divider(),
-  ];
+  const blocks: SlackBlock[] = [];
+  const [first] = params.candidates;
+
+  if (params.candidates.length === 1) {
+    const prText =
+      params.repo && first.prNumber != null
+        ? prLinkMrkdwn(params.repo, first.prNumber)
+        : first.prLink;
+    blocks.push(
+      section(`:white_check_mark: *Fixed in v${normalizeVersion(first.version)}*\nSee ${prText}`)
+    );
+  } else {
+    const candidateLines = params.candidates.map(
+      (c, i) =>
+        `${i + 1}. *v${normalizeVersion(c.version)}* — ${
+          params.repo && c.prNumber != null ? prLinkMrkdwn(params.repo, c.prNumber) : c.prLink
+        }`
+    );
+    blocks.push(section(`:white_check_mark: *High-confidence fix candidates found*`));
+    blocks.push(section(candidateLines.join('\n')));
+  }
+
+  blocks.push(context(`:large_green_circle: *High confidence* — ${first.reason}`));
+  blocks.push(divider());
+
   const traceBlock = buildTraceContext(params.footer);
   if (traceBlock) blocks.push(traceBlock);
   return blocks;
@@ -101,7 +121,7 @@ export interface MediumConfidenceParams {
 }
 
 export function buildMediumConfidenceBlocks(params: MediumConfidenceParams): SlackBlock[] {
-  const topCandidates = params.candidates.slice(0, 3);
+  const topCandidates = params.candidates.slice(0, 5);
   const candidateLines = topCandidates.map(
     (c, i) =>
       `${i + 1}. *v${normalizeVersion(c.version)}* — ${

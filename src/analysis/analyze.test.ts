@@ -162,7 +162,7 @@ describe('analyzeIssue', () => {
 
     expect(result.kind).toBe('high_confidence');
     if (result.kind === 'high_confidence') {
-      expect(result.version).toBe('8.52.0');
+      expect(result.candidates[0].version).toBe('8.52.0');
     }
     expect(subtasks.fetchReleaseRange).not.toHaveBeenCalled();
 
@@ -191,14 +191,16 @@ describe('analyzeIssue', () => {
       }),
       scanReleaseNotes: vi.fn().mockResolvedValue({
         kind: 'high_confidence',
-        candidate: {
-          version: '8.52.0',
-          prNumber: 5242,
-          prLink: 'https://github.com/getsentry/sentry-cocoa/pull/5242',
-          confidence: 'high',
-          reason:
-            'PR title explicitly mentions adding missing context for watchdog termination events.',
-        },
+        candidates: [
+          {
+            version: '8.52.0',
+            prNumber: 5242,
+            prLink: 'https://github.com/getsentry/sentry-cocoa/pull/5242',
+            confidence: 'high',
+            reason:
+              'PR title explicitly mentions adding missing context for watchdog termination events.',
+          },
+        ],
       }),
     });
 
@@ -206,7 +208,7 @@ describe('analyzeIssue', () => {
 
     expect(result.kind).toBe('high_confidence');
     if (result.kind === 'high_confidence') {
-      expect(result.version).toBe('8.52.0');
+      expect(result.candidates[0].version).toBe('8.52.0');
     }
 
     const finalContent = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
@@ -224,7 +226,7 @@ describe('analyzeIssue', () => {
     expect(finalMessage).not.toContain('Relevant PRs evaluated');
   });
 
-  it('shows top 3 medium-confidence candidates as potential fixes when no high-confidence match', async () => {
+  it('shows medium-confidence candidates as potential fixes when no high-confidence match', async () => {
     const tools = makeMockTools();
     const subtasks = makeMockSubtasks({
       fetchReleaseRange: vi.fn().mockResolvedValue({
@@ -284,7 +286,7 @@ describe('analyzeIssue', () => {
     expect(finalMessage).toContain('Deferring to SDK maintainers to confirm');
   });
 
-  it('caps at top 3 when more than 3 medium-confidence candidates exist', async () => {
+  it('caps at top 5 when more than 5 medium-confidence candidates exist', async () => {
     const tools = makeMockTools();
     const subtasks = makeMockSubtasks({
       fetchReleaseRange: vi.fn().mockResolvedValue({
@@ -294,7 +296,7 @@ describe('analyzeIssue', () => {
             tag: 'v8.46.0',
             name: '8.46.0',
             url: '',
-            body: '### Fixes\n- a (#100)\n- b (#101)\n- c (#102)\n- d (#103)',
+            body: '### Fixes\n- a (#100)\n- b (#101)\n- c (#102)\n- d (#103)\n- e (#104)\n- f (#105)',
           },
         ],
       }),
@@ -305,6 +307,8 @@ describe('analyzeIssue', () => {
           { version: '8.46.0', prNumber: 101, prLink: 'x', confidence: 'medium', reason: 'b' },
           { version: '8.46.0', prNumber: 102, prLink: 'x', confidence: 'medium', reason: 'c' },
           { version: '8.46.0', prNumber: 103, prLink: 'x', confidence: 'medium', reason: 'd' },
+          { version: '8.46.0', prNumber: 104, prLink: 'x', confidence: 'medium', reason: 'e' },
+          { version: '8.46.0', prNumber: 105, prLink: 'x', confidence: 'medium', reason: 'f' },
         ],
       }),
     });
@@ -318,8 +322,10 @@ describe('analyzeIssue', () => {
     expect(finalMessage).toContain('PR #100');
     expect(finalMessage).toContain('PR #101');
     expect(finalMessage).toContain('PR #102');
-    expect(finalMessage).toContain('PR #103'); // in trace (Relevant PRs evaluated)
-    expect(finalMessage).not.toContain('4. *'); // candidates list capped at 3
+    expect(finalMessage).toContain('PR #103');
+    expect(finalMessage).toContain('PR #104');
+    expect(finalMessage).toContain('PR #105'); // in trace (Relevant PRs evaluated)
+    expect(finalMessage).not.toContain('6. *'); // candidates list capped at 5
   });
 
   it('shows only available candidates when fewer than 3 medium-confidence matches', async () => {
