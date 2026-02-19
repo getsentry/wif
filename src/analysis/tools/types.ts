@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type { GitHubRelease } from '../github.js';
+import type { SlackMessageContent } from './slack.js';
 
 export interface ExtractedRequest {
   sdk: string | null;
@@ -46,6 +47,6 @@ export interface AnalysisTools {
     prBody: string | null,
     problem: string
   ): Promise<ConfidenceResult>;
-  updateSlackMessage(ts: string | undefined, text: string): Promise<void>;
-  postNewSlackMessage(text: string): Promise<string | undefined>;
+  updateSlackMessage(ts: string | undefined, content: SlackMessageContent): Promise<void>;
+  postNewSlackMessage(content: SlackMessageContent): Promise<string | undefined>;
 }

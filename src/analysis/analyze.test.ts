@@ -2,6 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import { analyzeIssue } from './analyze.js';
 import type { AnalysisSubtasks } from './subtasks/index.js';
 import type { AnalysisTools } from './tools/index.js';
+import type { SlackMessageContent } from './tools/slack.js';
+
+/** Extract all mrkdwn text from a Slack message (string or blocks) for assertions. */
+function getMessageText(content: SlackMessageContent): string {
+  if (typeof content === 'string') return content;
+  return content.blocks
+    .map((b) => {
+      if (b.type === 'section' && b.text) return b.text.text;
+      if (b.type === 'context') return b.elements.map((e) => e.text).join('\n');
+      return '';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
 
 function makeMockTools(overrides?: Partial<AnalysisTools>): AnalysisTools {
   return {
@@ -68,13 +82,22 @@ describe('analyzeIssue', () => {
     const subtasks = makeMockSubtasks();
     await analyzeIssue('Some issue', tools, subtasks);
 
-    expect(tools.postNewSlackMessage).toHaveBeenNthCalledWith(1, 'Analyzing…');
-    expect(tools.updateSlackMessage).toHaveBeenCalledWith(
-      'progress-ts',
-      expect.stringContaining('Scanning releases')
+    expect(tools.postNewSlackMessage).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        blocks: expect.any(Array),
+        text: 'Analyzing…',
+      })
     );
-    expect(tools.postNewSlackMessage).toHaveBeenLastCalledWith(
-      expect.stringContaining("I wasn't able to identify a fix")
+    const updatePayload = (tools.updateSlackMessage as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => getMessageText(c[1]).includes('Scanning releases')
+    )?.[1];
+    expect(updatePayload).toBeDefined();
+    expect(getMessageText(updatePayload as SlackMessageContent)).toContain('Scanning releases');
+
+    const lastPost = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(getMessageText(lastPost as SlackMessageContent)).toContain(
+      "I wasn't able to identify a fix"
     );
   });
 
@@ -86,15 +109,17 @@ describe('analyzeIssue', () => {
     const updateCalls = (tools.updateSlackMessage as ReturnType<typeof vi.fn>).mock.calls;
     expect(updateCalls.length).toBeGreaterThanOrEqual(2);
 
-    const firstUpdate = updateCalls[0][1] as string;
-    expect(firstUpdate).toMatch(/^Analyzing…\n\n/);
-    expect(firstUpdate).toContain('Resolving releases');
+    const firstUpdateText = getMessageText(updateCalls[0][1] as SlackMessageContent);
+    expect(firstUpdateText).toContain('Analyzing…');
+    expect(firstUpdateText).toContain('Resolving releases');
 
-    const lastUpdate = updateCalls[updateCalls.length - 1][1] as string;
-    expect(lastUpdate).toContain('Analyzing…');
-    expect(lastUpdate).toContain('Resolving releases');
-    expect(lastUpdate).toContain('Scanning releases');
-    expect(lastUpdate).toContain('Done.');
+    const lastUpdateText = getMessageText(
+      updateCalls[updateCalls.length - 1][1] as SlackMessageContent
+    );
+    expect(lastUpdateText).toContain('Analyzing…');
+    expect(lastUpdateText).toContain('Resolving releases');
+    expect(lastUpdateText).toContain('Scanning releases');
+    expect(lastUpdateText).toContain('Done.');
   });
 
   it('returns clarification when extractRequest needs more info', async () => {
@@ -141,13 +166,13 @@ describe('analyzeIssue', () => {
     }
     expect(subtasks.fetchReleaseRange).not.toHaveBeenCalled();
 
-    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+    const finalContent = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
       -1
     )?.[0];
-    expect(finalMessage).toContain('✓');
-    expect(finalMessage).toContain('**v8.52.0**');
-    expect(finalMessage).toContain('[PR #5242]');
-    expect(finalMessage).toContain('Confidence: **High** —');
+    const finalMessage = getMessageText(finalContent as SlackMessageContent);
+    expect(finalMessage).toContain('Fixed in v8.52.0');
+    expect(finalMessage).toContain('PR #5242');
+    expect(finalMessage).toContain('High confidence');
     expect(finalMessage).toContain('watchdog termination events');
     expect(finalMessage).not.toContain('Relevant PRs evaluated');
   });
@@ -184,15 +209,17 @@ describe('analyzeIssue', () => {
       expect(result.version).toBe('8.52.0');
     }
 
-    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+    const finalContent = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
       -1
     )?.[0];
-    expect(finalMessage).toContain('✓');
-    expect(finalMessage).toContain('**v8.52.0**');
-    expect(finalMessage).toContain('[PR #5242]');
-    expect(finalMessage).toContain('Confidence: **High** —');
+    const finalMessage = getMessageText(finalContent as SlackMessageContent);
+    expect(finalMessage).toContain('Fixed in v8.52.0');
+    expect(finalMessage).toContain('PR #5242');
+    expect(finalMessage).toContain('High confidence');
     expect(finalMessage).toContain('watchdog termination events');
-    expect(finalMessage).toContain('Checked: releases `v8.49.0`–`8.52.0`');
+    expect(finalMessage).toContain('Checked releases');
+    expect(finalMessage).toContain('v8.49.0');
+    expect(finalMessage).toContain('8.52.0');
     expect(finalMessage).not.toContain('9.4.1');
     expect(finalMessage).not.toContain('Relevant PRs evaluated');
   });
@@ -242,17 +269,18 @@ describe('analyzeIssue', () => {
 
     await analyzeIssue('Some regression', tools, subtasks);
 
-    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+    const finalContent = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
       -1
     )?.[0];
-    expect(finalMessage).toContain('potential candidates');
-    expect(finalMessage).toContain('1. **v8.46.0**');
-    expect(finalMessage).toContain('Confidence: **Medium** —');
+    const finalMessage = getMessageText(finalContent as SlackMessageContent);
+    expect(finalMessage).toContain('Potential candidates found');
+    expect(finalMessage).toContain('1. *v8.46.0*');
+    expect(finalMessage).toContain('Medium confidence');
     expect(finalMessage).toContain('logging subsystem');
-    expect(finalMessage).toContain('Relevant PRs evaluated:');
-    expect(finalMessage).toContain('[PR #100]');
-    expect(finalMessage).toContain('[PR #101]');
-    expect(finalMessage).toContain('[PR #102]');
+    expect(finalMessage).toContain('Relevant PRs evaluated');
+    expect(finalMessage).toContain('PR #100');
+    expect(finalMessage).toContain('PR #101');
+    expect(finalMessage).toContain('PR #102');
     expect(finalMessage).toContain('Deferring to SDK maintainers to confirm');
   });
 
@@ -283,14 +311,15 @@ describe('analyzeIssue', () => {
 
     await analyzeIssue('Some regression', tools, subtasks);
 
-    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+    const finalContent = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
       -1
     )?.[0];
-    expect(finalMessage).toContain('[PR #100]');
-    expect(finalMessage).toContain('[PR #101]');
-    expect(finalMessage).toContain('[PR #102]');
-    expect(finalMessage).toContain('[PR #103]'); // in trace (Relevant PRs evaluated)
-    expect(finalMessage).not.toContain('4. **'); // candidates list capped at 3
+    const finalMessage = getMessageText(finalContent as SlackMessageContent);
+    expect(finalMessage).toContain('PR #100');
+    expect(finalMessage).toContain('PR #101');
+    expect(finalMessage).toContain('PR #102');
+    expect(finalMessage).toContain('PR #103'); // in trace (Relevant PRs evaluated)
+    expect(finalMessage).not.toContain('4. *'); // candidates list capped at 3
   });
 
   it('shows only available candidates when fewer than 3 medium-confidence matches', async () => {
@@ -323,13 +352,14 @@ describe('analyzeIssue', () => {
 
     await analyzeIssue('Some regression', tools, subtasks);
 
-    const finalMessage = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
+    const finalContent = (tools.postNewSlackMessage as ReturnType<typeof vi.fn>).mock.calls.at(
       -1
     )?.[0];
-    expect(finalMessage).toContain('potential candidates');
-    expect(finalMessage).toContain('1. **v8.46.0**');
-    expect(finalMessage).toContain('[PR #100]');
-    expect(finalMessage).not.toContain('2. **');
+    const finalMessage = getMessageText(finalContent as SlackMessageContent);
+    expect(finalMessage).toContain('Potential candidates found');
+    expect(finalMessage).toContain('1. *v8.46.0*');
+    expect(finalMessage).toContain('PR #100');
+    expect(finalMessage).not.toContain('2. *');
   });
 
   it('works without Slack posting when tools are no-ops', async () => {
@@ -340,6 +370,12 @@ describe('analyzeIssue', () => {
     const result = await analyzeIssue('Some issue', tools, subtasks);
 
     expect(result.kind).toBe('no_result');
-    expect(tools.updateSlackMessage).toHaveBeenCalledWith(undefined, expect.any(String));
+    expect(tools.updateSlackMessage).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        blocks: expect.any(Array),
+        text: expect.any(String),
+      })
+    );
   });
 });

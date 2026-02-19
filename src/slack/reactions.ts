@@ -1,7 +1,8 @@
-import { webApi } from '@slack/bolt';
+import type { webApi } from '@slack/bolt';
+import { buildErrorBlocks } from '../analysis/blocks/index.js';
 
 export interface ReactionFeedbackContext {
-  slackClient: webApi.WebClient;
+  slackClient: Pick<webApi.WebClient, 'reactions' | 'chat'>;
   channel: string;
   ts: string;
   threadTs: string | undefined;
@@ -34,8 +35,9 @@ export async function withReactionFeedback<T>(
     await slackClient.chat.postMessage({
       channel,
       thread_ts: threadTs ?? ts,
-      markdown_text: `Something went wrong: ${errorSummary}`,
-    });
+      blocks: buildErrorBlocks(errorSummary),
+      text: `Something went wrong: ${errorSummary}`,
+    } as Parameters<webApi.WebClient['chat']['postMessage']>[0]);
     throw error;
   }
 }
