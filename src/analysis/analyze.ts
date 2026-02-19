@@ -10,6 +10,7 @@ import {
   prLinkMrkdwn,
 } from './blocks/index.js';
 import type { ProgressStep } from './blocks/index.js';
+import { getMaintainerMention } from './maintainers.js';
 import type { AnalysisSubtasks, ScanReleaseNotesOutput } from './subtasks/index.js';
 import type { AnalysisTools } from './tools/index.js';
 
@@ -326,6 +327,8 @@ async function postResult(
     ctx.traceId
   );
 
+  const maintainerMention = ctx.repo ? (getMaintainerMention(ctx.repo) ?? undefined) : undefined;
+
   let blocks: ReturnType<typeof buildHighConfidenceBlocks>;
   let fallbackText: string;
 
@@ -351,6 +354,7 @@ async function postResult(
         repo: ctx.repo,
         reason: result.reason,
         footer,
+        maintainerMention,
       });
       fallbackText = `Potential candidates: ${result.candidates.map((c) => `v${c.version} PR #${c.prNumber}`).join(', ')}.`;
       break;
@@ -359,16 +363,20 @@ async function postResult(
       blocks = buildNoResultBlocks({
         version: ctx.version ?? '?',
         footer,
+        maintainerMention,
       });
       fallbackText = `No fix identified in releases after v${ctx.version ?? '?'}.`;
       break;
     case 'too_old':
-      blocks = buildTooOldBlocks(ctx.version ?? '?', skipped || undefined);
+      blocks = buildTooOldBlocks(ctx.version ?? '?', skipped || undefined, maintainerMention);
       fallbackText = `Version v${ctx.version ?? '?'} is too old.`;
       break;
     case 'already_latest':
-    case 'invalid_version':
     case 'fetch_failed':
+      blocks = buildSimpleTextBlocks(result.message, skipped || undefined, maintainerMention);
+      fallbackText = result.message;
+      break;
+    case 'invalid_version':
     case 'clarification':
       blocks = buildSimpleTextBlocks(result.message, skipped || undefined);
       fallbackText = result.message;

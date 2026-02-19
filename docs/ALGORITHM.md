@@ -241,11 +241,22 @@ Checked: releases <first>–<last> in <repo>.
 
 `<first>`–`<last>` MUST reflect the **actual** range scanned. When the agent exits early after accumulating 3 HIGH candidates, `<last>` is the version of the last HIGH candidate found. "Relevant PRs evaluated" is shown only when **more than one** PR was evaluated; omit it when there is a single PR.
 
+### Maintainer pinging
+
+Whenever the agent defers to SDK maintainers (medium confidence, no result, too old, already on
+latest, fetch failed), it MUST look up the Slack user group for the resolved repository using the
+mapping in `src/analysis/maintainers.ts` and append the mention(s) to the deferral sentence. If
+no entry exists for the repository, no mention is added.
+
 ### Medium confidence (fallback when no high-confidence match)
 
-When no high-confidence PR is found but at least one medium-confidence candidate exists, the agent MUST report the **top 5** medium-confidence releases or PRs as potential candidates. This fallback helps when WIF is unsure.
+When no high-confidence PR is found but at least one medium-confidence candidate exists, the agent
+MUST report the **top 5** medium-confidence releases or PRs as potential candidates. This fallback
+helps when WIF is unsure.
 
-The agent MUST list up to 5 candidates (oldest first, as encountered during the scan). Use **bold** for versions and `[PR #N](url)` for links. The agent MUST include a `Confidence: **Medium**` line followed by the reason (from the first candidate) on the same line after the main finding.
+The agent MUST list up to 5 candidates (oldest first, as encountered during the scan). Use **bold**
+for versions and `[PR #N](url)` for links. The agent MUST include a `Confidence: **Medium**` line
+followed by the reason (from the first candidate) on the same line after the main finding.
 
 ```
 I'm not fully certain, but here are potential candidates:
@@ -256,7 +267,7 @@ I'm not fully certain, but here are potential candidates:
 4. **v<version4>** — [PR #N4](url)
 5. **v<version5>** — [PR #N5](url)
 
-Deferring to SDK maintainers to confirm.
+Deferring to SDK maintainers to confirm. @<group>
 Confidence: **Medium** — <reason>
 
 Checked: releases <first>–<last> in <repo>.
@@ -264,7 +275,8 @@ Checked: releases <first>–<last> in <repo>.
 [View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
 
-If fewer than 5 candidates exist, list only those found. "Relevant PRs evaluated" is shown only when more than one PR was evaluated.
+If fewer than 5 candidates exist, list only those found. "Relevant PRs evaluated" is shown only
+when more than one PR was evaluated.
 
 ### No result
 
@@ -272,7 +284,7 @@ The agent MUST defer entirely. "Checked" uses the full range scanned (all releas
 
 ```
 I wasn't able to identify a fix in the releases after v<version>.
-Deferring to SDK maintainers for investigation.
+Deferring to SDK maintainers for investigation. @<group>
 
 Checked: releases <first>–<last> in <repo>.
 Release notes reviewed: <count>.
@@ -287,7 +299,7 @@ The agent MUST report that the version is too far behind:
 ```
 The reported version (v<version>) is more than 100 releases behind
 the latest stable release. Unable to look this up efficiently.
-Deferring to SDK maintainers.
+Deferring to SDK maintainers. @<group>
 
 [View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
