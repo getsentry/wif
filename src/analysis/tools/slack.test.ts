@@ -49,4 +49,51 @@ describe('createSlackTools', () => {
     });
     expect(ts).toBe('123.999');
   });
+
+  it('postNewSlackMessage accepts blocks and sends blocks + text', async () => {
+    const postMessage = vi.fn().mockResolvedValue({ ok: true, ts: '456.000' });
+    const tools = createSlackTools({
+      slackClient: { chat: { update: vi.fn(), postMessage } },
+      channel: 'C123',
+      threadTs: undefined,
+    });
+
+    const blocks = [
+      { type: 'section' as const, text: { type: 'mrkdwn' as const, text: '*Hello*' } },
+    ];
+    const ts = await tools.postNewSlackMessage({ blocks, text: 'Hello' });
+
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: 'C123',
+        thread_ts: undefined,
+        blocks,
+        text: 'Hello',
+      })
+    );
+    expect(ts).toBe('456.000');
+  });
+
+  it('updateSlackMessage accepts blocks', async () => {
+    const update = vi.fn().mockResolvedValue({ ok: true });
+    const tools = createSlackTools({
+      slackClient: { chat: { update, postMessage: vi.fn() } },
+      channel: 'C123',
+      threadTs: undefined,
+    });
+
+    const blocks = [
+      { type: 'section' as const, text: { type: 'mrkdwn' as const, text: 'Updated' } },
+    ];
+    await tools.updateSlackMessage('123.999', { blocks, text: 'Updated' });
+
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: 'C123',
+        ts: '123.999',
+        blocks,
+        text: 'Updated',
+      })
+    );
+  });
 });

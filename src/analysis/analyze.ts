@@ -1,9 +1,17 @@
 import * as Sentry from '@sentry/node';
+import {
+  addTraceToFooter,
+  buildHighConfidenceBlocks,
+  buildMediumConfidenceBlocks,
+  buildNoResultBlocks,
+  buildProgressBlocks,
+  buildSimpleTextBlocks,
+  buildTooOldBlocks,
+  prLinkMrkdwn,
+} from './blocks/index.js';
+import type { ProgressStep } from './blocks/index.js';
 import type { AnalysisSubtasks, ScanReleaseNotesOutput } from './subtasks/index.js';
 import type { AnalysisTools } from './tools/index.js';
-import { prLinkMarkdown } from './utils.js';
-
-const SENTRY_TRACE_BASE_URL = 'https://sentry-sdks.sentry.io/explore/traces/trace';
 
 export type AnalysisResult = { message: string } & (
   | { kind: 'high_confidence'; version: string; prLink: string; prNumber: number; reason: string }
@@ -30,18 +38,30 @@ export async function analyzeIssue(
 ): Promise<AnalysisResult> {
   const traceId = Sentry.getActiveSpan()?.spanContext().traceId;
 
-  let progressText = 'Analyzing…';
-  const progressTs = await tools.postNewSlackMessage(progressText);
+  const progressSteps: ProgressStep[] = [{ label: 'Analyzing…', status: 'in_progress' }];
+  const progressTs = await tools.postNewSlackMessage({
+    blocks: buildProgressBlocks(progressSteps),
+    text: 'Analyzing…',
+  });
 
   const appendProgress = async (line: string): Promise<void> => {
-    progressText = progressText + '\n\n' + line;
-    await tools.updateSlackMessage(progressTs, progressText);
+    progressSteps.forEach((s) => {
+      if (s.status === 'in_progress') s.status = 'done';
+    });
+    progressSteps.push({ label: line, status: 'in_progress' });
+    await tools.updateSlackMessage(progressTs, {
+      blocks: buildProgressBlocks(progressSteps),
+      text: line,
+    });
   };
 
   const extractResult = await subtasks.extractRequest(issueDescription);
   if (extractResult.kind === 'clarification') {
     await appendProgress(extractResult.message);
-    await tools.postNewSlackMessage(extractResult.message);
+    await tools.postNewSlackMessage({
+      blocks: buildSimpleTextBlocks(extractResult.message),
+      text: extractResult.message,
+    });
     return { kind: 'clarification', message: extractResult.message };
   }
 
@@ -50,7 +70,10 @@ export async function analyzeIssue(
   const resolveResult = await subtasks.resolveRepository(sdk, issueDescription);
   if (resolveResult.kind === 'clarification') {
     await appendProgress(resolveResult.message);
-    await tools.postNewSlackMessage(resolveResult.message);
+    await tools.postNewSlackMessage({
+      blocks: buildSimpleTextBlocks(resolveResult.message),
+      text: resolveResult.message,
+    });
     return { kind: 'clarification', message: resolveResult.message };
   }
 
@@ -79,7 +102,7 @@ export async function analyzeIssue(
           firstRelease: linkResult.version,
           lastRelease: linkResult.version,
           releaseCount: 1,
-          evaluatedPrs: [prLinkMarkdown(repo, linkResult.prNumber)],
+          evaluatedPrNumbers: [linkResult.prNumber],
           skippedSteps,
           traceId,
         },
@@ -195,11 +218,11 @@ export async function analyzeIssue(
       lastRelease,
       releaseCount: releases.length,
       version,
-      evaluatedPrs:
+      evaluatedPrNumbers:
         result.kind === 'high_confidence'
-          ? [prLinkMarkdown(repo, result.prNumber)]
+          ? [result.prNumber]
           : result.kind === 'medium_confidence'
-            ? result.candidates.map((c) => prLinkMarkdown(repo, c.prNumber))
+            ? result.candidates.map((c) => c.prNumber)
             : [],
       skippedSteps,
       traceId,
@@ -248,6 +271,7 @@ interface PostResultContext {
   releaseCount?: number;
   version?: string;
   evaluatedPrs?: string[];
+  evaluatedPrNumbers?: number[];
   skippedSteps?: string[];
   traceId?: string;
 }
@@ -261,78 +285,80 @@ async function postResult(
 ): Promise<void> {
   const checked =
     ctx.firstRelease && ctx.lastRelease && ctx.repo
-      ? `Checked: releases \`${ctx.firstRelease}\`–\`${ctx.lastRelease}\` in \`${ctx.repo}\`.`
+      ? `Checked releases \`${ctx.firstRelease}\`–\`${ctx.lastRelease}\` in \`${ctx.repo}\``
       : ctx.version
-        ? `Checked: version \`${ctx.version}\`.`
+        ? `Checked version \`${ctx.version}\``
         : '';
   const evaluated =
-    ctx.evaluatedPrs && ctx.evaluatedPrs.length > 1
-      ? `Relevant PRs evaluated: ${ctx.evaluatedPrs.join(', ')}.`
-      : ctx.releaseCount !== undefined && (!ctx.evaluatedPrs || ctx.evaluatedPrs.length === 0)
-        ? `Release notes reviewed: ${ctx.releaseCount}.`
+    ctx.evaluatedPrNumbers && ctx.evaluatedPrNumbers.length > 1 && ctx.repo
+      ? `Relevant PRs evaluated: ${ctx.evaluatedPrNumbers.map((n) => prLinkMrkdwn(ctx.repo!, n)).join(', ')}`
+      : ctx.releaseCount !== undefined &&
+          (!ctx.evaluatedPrNumbers || ctx.evaluatedPrNumbers.length === 0)
+        ? `Release notes reviewed: ${ctx.releaseCount}`
         : '';
   const skipped =
     ctx.skippedSteps && ctx.skippedSteps.length > 0
-      ? `Skipped steps: ${ctx.skippedSteps.join('; ')}.`
+      ? `Skipped steps: ${ctx.skippedSteps.join('; ')}`
       : '';
 
-  let responseText: string;
+  const footer = addTraceToFooter(
+    {
+      checked: checked || undefined,
+      evaluated: evaluated || undefined,
+      skipped: skipped || undefined,
+    },
+    ctx.traceId
+  );
 
-  const trace = [checked, evaluated, skipped].filter(Boolean).join('\n');
+  let blocks: ReturnType<typeof buildHighConfidenceBlocks>;
+  let fallbackText: string;
 
   switch (result.kind) {
-    case 'high_confidence': {
-      const prMd = ctx.repo ? prLinkMarkdown(ctx.repo, result.prNumber) : result.prLink;
-      responseText =
-        `✓ This was fixed in **v${normalizeVersion(result.version)}**. See ${prMd}.\n` +
-        `Confidence: **High** — ${result.reason}\n\n` +
-        trace;
+    case 'high_confidence':
+      blocks = buildHighConfidenceBlocks({
+        version: result.version,
+        prLink: result.prLink,
+        repo: ctx.repo,
+        prNumber: result.prNumber,
+        reason: result.reason,
+        footer,
+      });
+      fallbackText = `Fixed in v${result.version}. See PR #${result.prNumber}.`;
       break;
-    }
     case 'medium_confidence': {
-      const topCandidates = result.candidates.slice(0, 3);
-      const candidateLines = topCandidates.map(
-        (c, i) =>
-          `${i + 1}. **v${normalizeVersion(c.version)}** — ${ctx.repo ? prLinkMarkdown(ctx.repo, c.prNumber) : c.prLink}`
-      );
-      responseText =
-        `I'm not fully certain, but here are potential candidates:\n\n` +
-        candidateLines.join('\n') +
-        `\n\nDeferring to SDK maintainers to confirm.\n` +
-        `Confidence: **Medium** — ${result.reason}\n\n` +
-        trace;
+      blocks = buildMediumConfidenceBlocks({
+        candidates: result.candidates.map((c) => ({
+          version: c.version,
+          prLink: c.prLink,
+          prNumber: c.prNumber,
+        })),
+        repo: ctx.repo,
+        reason: result.reason,
+        footer,
+      });
+      fallbackText = `Potential candidates: ${result.candidates.map((c) => `v${c.version} PR #${c.prNumber}`).join(', ')}.`;
       break;
     }
     case 'no_result':
-      responseText =
-        `I wasn't able to identify a fix in the releases after v${ctx.version ?? '?'}.\n` +
-        `Deferring to SDK maintainers for investigation.\n\n` +
-        trace;
+      blocks = buildNoResultBlocks({
+        version: ctx.version ?? '?',
+        footer,
+      });
+      fallbackText = `No fix identified in releases after v${ctx.version ?? '?'}.`;
       break;
     case 'too_old':
-      responseText =
-        `The reported version (v${ctx.version ?? '?'}) is more than 100 releases behind ` +
-        `the latest stable release. Unable to look this up efficiently.\n` +
-        `Deferring to SDK maintainers.` +
-        (skipped ? `\n\n${skipped}` : '');
+      blocks = buildTooOldBlocks(ctx.version ?? '?', skipped || undefined);
+      fallbackText = `Version v${ctx.version ?? '?'} is too old.`;
       break;
     case 'already_latest':
     case 'invalid_version':
     case 'fetch_failed':
     case 'clarification':
-      responseText = result.message + (skipped ? `\n\n${skipped}` : '');
+      blocks = buildSimpleTextBlocks(result.message, skipped || undefined);
+      fallbackText = result.message;
       break;
   }
 
-  if (ctx.traceId) {
-    const traceUrl = `${SENTRY_TRACE_BASE_URL}/${ctx.traceId}`;
-    responseText += `\n\n[View Sentry trace](${traceUrl})`;
-  }
-
   await appendProgress('Done.');
-  await tools.postNewSlackMessage(responseText);
-}
-
-function normalizeVersion(v: string): string {
-  return v.replace(/^v/, '');
+  await tools.postNewSlackMessage({ blocks, text: fallbackText });
 }

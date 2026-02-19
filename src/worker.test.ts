@@ -181,10 +181,13 @@ describe('processSlackWebhook', () => {
       timestamp: '1234567890.123456',
       name: 'x',
     });
-    expect(mockSlackClient.chat.postMessage).toHaveBeenCalledWith({
-      channel: 'C123',
-      thread_ts: '1234567890.123400',
-      markdown_text: 'Something went wrong: Analysis failed',
-    });
+    expect(mockSlackClient.chat.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: 'C123',
+        thread_ts: '1234567890.123400',
+        blocks: expect.any(Array),
+        text: 'Something went wrong: Analysis failed',
+      })
+    );
   });
 });
