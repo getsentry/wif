@@ -35,16 +35,12 @@ function extractPrNumber(prRef: string | undefined): number | null {
 }
 
 export function createScanReleaseNotesSubtask(
-  tools: Pick<
-    AnalysisTools,
-    'filterRelevantEntries' | 'getPrDetails' | 'scorePrConfidence' | 'verifyPrMatch'
-  >
+  tools: Pick<AnalysisTools, 'filterRelevantEntries' | 'getPrDetails' | 'scorePrConfidence'>
 ) {
   return async function scanReleaseNotes(
     releases: GitHubRelease[],
     problem: string,
     repo: string,
-    issueDescription: string,
     onProgress?: (done: number, total: number) => void
   ): Promise<ScanReleaseNotesOutput> {
     const candidates: ScanCandidate[] = [];
@@ -53,7 +49,7 @@ export function createScanReleaseNotesSubtask(
       const batch = releases.slice(i, i + BATCH_SIZE);
       const releaseNotes = batch.map((r) => `## ${r.tag}\n${r.body ?? ''}`).join('\n\n');
 
-      const entries = await tools.filterRelevantEntries(releaseNotes, problem, issueDescription);
+      const entries = await tools.filterRelevantEntries(releaseNotes, problem);
 
       for (const entry of entries) {
         const prNumber = extractPrNumber(entry.pr_reference) ?? extractPrNumber(entry.line);
@@ -65,37 +61,20 @@ export function createScanReleaseNotesSubtask(
         const { level, reason } = await tools.scorePrConfidence(
           prDetails.title,
           prDetails.body,
-          problem,
-          issueDescription
+          problem
         );
 
         if (level === 'high') {
-          const verification = await tools.verifyPrMatch(
-            prDetails.title,
-            prDetails.body,
-            problem,
-            issueDescription
-          );
-          if (verification.confirmed) {
-            return {
-              kind: 'high_confidence',
-              candidate: {
-                version: entry.release,
-                prNumber,
-                prLink: prLinkFor(repo, prNumber),
-                confidence: 'high',
-                reason,
-              },
-            };
-          }
-          candidates.push({
-            version: entry.release,
-            prNumber,
-            prLink: prLinkFor(repo, prNumber),
-            confidence: 'medium',
-            reason: verification.reason,
-          });
-          continue;
+          return {
+            kind: 'high_confidence',
+            candidate: {
+              version: entry.release,
+              prNumber,
+              prLink: prLinkFor(repo, prNumber),
+              confidence: 'high',
+              reason,
+            },
+          };
         }
 
         if (level === 'medium') {
