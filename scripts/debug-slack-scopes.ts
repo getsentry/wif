@@ -51,9 +51,7 @@ async function main() {
   );
 
   results.push(
-    await testApi('users.info', 'users:read', () =>
-      client.users.info({ user: authTest.user_id! })
-    )
+    await testApi('users.info', 'users:read', () => client.users.info({ user: authTest.user_id! }))
   );
 
   results.push(
@@ -83,7 +81,9 @@ async function main() {
   const failures = results.filter((r) => !r.ok);
   if (failures.length > 0) {
     console.log(`\n${failures.length} scope(s) missing or failing.`);
-    console.log('Fix: Go to https://api.slack.com/apps → OAuth & Permissions → add missing scopes → reinstall app.');
+    console.log(
+      'Fix: Go to https://api.slack.com/apps → OAuth & Permissions → add missing scopes → reinstall app.'
+    );
   } else {
     console.log('\nAll scopes OK!');
   }
