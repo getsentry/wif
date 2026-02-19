@@ -12,7 +12,7 @@ export interface ScanCandidate {
 
 export interface ScanHighConfidenceResult {
   kind: 'high_confidence';
-  candidates: ScanCandidate[];
+  candidate: ScanCandidate;
 }
 
 export interface ScanMediumResult {
@@ -27,8 +27,6 @@ export interface ScanNoResult {
 export type ScanReleaseNotesOutput = ScanHighConfidenceResult | ScanMediumResult | ScanNoResult;
 
 const BATCH_SIZE = 5;
-const MAX_HIGH_CANDIDATES = 3;
-const MAX_MEDIUM_CANDIDATES = 5;
 
 function extractPrNumber(prRef: string | undefined): number | null {
   if (!prRef) return null;
@@ -49,8 +47,7 @@ export function createScanReleaseNotesSubtask(
     issueDescription: string,
     onProgress?: (done: number, total: number) => void
   ): Promise<ScanReleaseNotesOutput> {
-    const highCandidates: ScanCandidate[] = [];
-    const mediumCandidates: ScanCandidate[] = [];
+    const candidates: ScanCandidate[] = [];
 
     for (let i = 0; i < releases.length; i += BATCH_SIZE) {
       const batch = releases.slice(i, i + BATCH_SIZE);
@@ -80,32 +77,29 @@ export function createScanReleaseNotesSubtask(
             issueDescription
           );
           if (verification.confirmed) {
-            highCandidates.push({
-              version: entry.release,
-              prNumber,
-              prLink: prLinkFor(repo, prNumber),
-              confidence: 'high',
-              reason,
-            });
-            if (highCandidates.length >= MAX_HIGH_CANDIDATES) {
-              return { kind: 'high_confidence', candidates: highCandidates };
-            }
-            continue;
+            return {
+              kind: 'high_confidence',
+              candidate: {
+                version: entry.release,
+                prNumber,
+                prLink: prLinkFor(repo, prNumber),
+                confidence: 'high',
+                reason,
+              },
+            };
           }
-          if (mediumCandidates.length < MAX_MEDIUM_CANDIDATES) {
-            mediumCandidates.push({
-              version: entry.release,
-              prNumber,
-              prLink: prLinkFor(repo, prNumber),
-              confidence: 'medium',
-              reason: verification.reason,
-            });
-          }
+          candidates.push({
+            version: entry.release,
+            prNumber,
+            prLink: prLinkFor(repo, prNumber),
+            confidence: 'medium',
+            reason: verification.reason,
+          });
           continue;
         }
 
-        if (level === 'medium' && mediumCandidates.length < MAX_MEDIUM_CANDIDATES) {
-          mediumCandidates.push({
+        if (level === 'medium') {
+          candidates.push({
             version: entry.release,
             prNumber,
             prLink: prLinkFor(repo, prNumber),
@@ -118,12 +112,8 @@ export function createScanReleaseNotesSubtask(
       onProgress?.(Math.min(i + BATCH_SIZE, releases.length), releases.length);
     }
 
-    if (highCandidates.length > 0) {
-      return { kind: 'high_confidence', candidates: highCandidates };
-    }
-
-    if (mediumCandidates.length > 0) {
-      return { kind: 'medium', candidates: mediumCandidates };
+    if (candidates.length > 0) {
+      return { kind: 'medium', candidates };
     }
 
     return { kind: 'no_result' };
