@@ -83,7 +83,13 @@ export async function analyzeIssue(
 
   if (links && links.length > 0) {
     await appendProgress('Checking linked issues…');
-    const linkResult = await subtasks.checkExtractedLinks(links, version, repo, problem);
+    const linkResult = await subtasks.checkExtractedLinks(
+      links,
+      version,
+      repo,
+      problem,
+      issueDescription
+    );
     if (linkResult.kind === 'high_confidence') {
       const result: AnalysisResult = {
         message: '',
@@ -198,9 +204,15 @@ export async function analyzeIssue(
     `Scanning releases \`${firstRelease}\`–\`${lastReleaseInRange}\` (\`${releases.length}\` releases)…`
   );
 
-  const scanResult = await subtasks.scanReleaseNotes(releases, problem, repo, (done, total) => {
-    appendProgress(`Scanned \`${done}\` of \`${total}\` releases…`);
-  });
+  const scanResult = await subtasks.scanReleaseNotes(
+    releases,
+    problem,
+    repo,
+    issueDescription,
+    (done, total) => {
+      appendProgress(`Scanned \`${done}\` of \`${total}\` releases…`);
+    }
+  );
 
   const result = mapScanResultToAnalysisResult(scanResult);
 

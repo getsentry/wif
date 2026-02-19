@@ -19,13 +19,15 @@ export interface AnalysisSubtasks {
     links: string[],
     version: string,
     repo: string,
-    problem: string
+    problem: string,
+    issueDescription: string
   ): Promise<CheckExtractedLinksOutput>;
   fetchReleaseRange(repo: string, fromVersion: string): Promise<FetchReleaseRangeOutput>;
   scanReleaseNotes(
     releases: import('../github.js').GitHubRelease[],
     problem: string,
     repo: string,
+    issueDescription: string,
     onProgress?: (done: number, total: number) => void
   ): Promise<ScanReleaseNotesOutput>;
 }
