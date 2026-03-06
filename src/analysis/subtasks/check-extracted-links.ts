@@ -31,17 +31,13 @@ function versionAfter(fixedVersion: string, userVersion: string): boolean {
 }
 
 export function createCheckExtractedLinksSubtask(
-  tools: Pick<
-    AnalysisTools,
-    'getIssueResolution' | 'getPrDetails' | 'scorePrConfidence' | 'verifyPrMatch'
-  >
+  tools: Pick<AnalysisTools, 'getIssueResolution' | 'getPrDetails' | 'scorePrConfidence'>
 ) {
   return async function checkExtractedLinks(
     links: string[],
     version: string,
     repo: string,
-    problem: string,
-    issueDescription: string
+    problem: string
   ): Promise<CheckExtractedLinksOutput> {
     const skippedLinks: Array<{ url: string; reason: string }> = [];
 
@@ -60,27 +56,18 @@ export function createCheckExtractedLinksSubtask(
         const { level, reason } = await tools.scorePrConfidence(
           prDetails.title,
           prDetails.body,
-          problem,
-          issueDescription
+          problem
         );
 
         if (level === 'high') {
-          const verification = await tools.verifyPrMatch(
-            prDetails.title,
-            prDetails.body,
-            problem,
-            issueDescription
-          );
-          if (verification.confirmed) {
-            const prLink = prLinkFor(repo, resolution.pr_number);
-            return {
-              kind: 'high_confidence',
-              version: resolution.fixed_in_version,
-              prNumber: resolution.pr_number,
-              prLink,
-              reason,
-            };
-          }
+          const prLink = prLinkFor(repo, resolution.pr_number);
+          return {
+            kind: 'high_confidence',
+            version: resolution.fixed_in_version,
+            prNumber: resolution.pr_number,
+            prLink,
+            reason,
+          };
         }
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);

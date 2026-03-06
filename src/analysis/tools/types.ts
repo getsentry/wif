@@ -40,17 +40,12 @@ export interface AnalysisTools {
   getIssueResolution(issueUrl: string): Promise<IssueResolution | null>;
   getReleasesFromVersion(repo: string, fromVersion: string): Promise<GitHubRelease[]>;
   findAllReleases(repo: string): Promise<GitHubRelease[]>;
-  filterRelevantEntries(
-    releaseNotes: string,
-    problem: string,
-    issueDescription: string
-  ): Promise<RelevantEntry[]>;
+  filterRelevantEntries(releaseNotes: string, problem: string): Promise<RelevantEntry[]>;
   getPrDetails(repo: string, prNumber: number): Promise<PrDetails | null>;
   scorePrConfidence(
     prTitle: string,
     prBody: string | null,
-    problem: string,
-    issueDescription: string
+    problem: string
   ): Promise<ConfidenceResult>;
   verifyPrMatch(
     prTitle: string,

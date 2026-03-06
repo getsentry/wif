@@ -25,29 +25,26 @@ Implementations MAY combine Subtask 1 and Subtask 2 into a single LLM call when 
 
 Pseudo-code signatures for tools used by subtasks. Implementations MAY vary.
 
-| Tool                           | Signature                                                                                                                       | Description                                                                                                                                                                                                                                                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `extract_request`              | `extract_request(message: string) -> { sdk, version, problem, links? }`                                                         | LLM: extract sdk, version, problem, and optional links from support engineer message.                                                                                                                                                                                                                       |
-| `lookup_sdk_repository`        | `lookup_sdk_repository(sdk: string) -> string or null`                                                                          | Map SDK identifier to `owner/repo` slug. Returns null if unknown.                                                                                                                                                                                                                                           |
-| `resolve_repository_ambiguous` | `resolve_repository_ambiguous(context: string) -> string`                                                                       | LLM: resolve repository when lookup is ambiguous.                                                                                                                                                                                                                                                           |
-| `get_issue_resolution`         | `get_issue_resolution(issue_url: string) -> { fixed_in_version?, pr_number? }`                                                  | GitHub API: check if linked issue/PR was fixed and in which release.                                                                                                                                                                                                                                        |
-| `get_releases_from_version`    | `get_releases_from_version(repo: string, from_version: string) -> Release[]`                                                    | GitHub API: list stable releases strictly after `from_version` (oldest → newest). MUST exclude pre-release versions. SHOULD use server-side filtering where the API supports it; otherwise filter client-side.                                                                                              |
-| `filter_relevant_entries`      | `filter_relevant_entries(release_notes: string, problem: string, issue_description: string) -> (release, line, pr_reference)[]` | LLM: identify release note lines relevant to `problem`. `issue_description` is the full raw thread and MUST be passed alongside `problem` to improve precision.                                                                                                                                             |
-| `get_pr_details`               | `get_pr_details(repo: string, pr_number: int) -> PRDetails`                                                                     | GitHub API: fetch PR title and description.                                                                                                                                                                                                                                                                 |
-| `score_pr_confidence`          | `score_pr_confidence(pr: PRDetails, problem: string, issue_description: string) -> { level: Confidence, reason: string }`       | LLM: assign high/medium/low confidence that PR fixes `problem`. `issue_description` is the full raw thread and MUST be passed alongside `problem` to improve precision. Returns a one-sentence explanation of why.                                                                                          |
-| `fetch_thread_messages`        | `fetch_thread_messages(channel: string, thread_ts: string) -> string`                                                           | Slack: fetch all messages in a thread via `conversations.replies`. Returns formatted text (e.g. `User: message`) for the full thread. Used for input collection before analysis.                                                                                                                            |
-| `verify_pr_match`              | `verify_pr_match(pr: PRDetails, problem: string, issue_description: string) -> { confirmed: bool, reason: string }`             | LLM (adversarial): challenge a CANDIDATE HIGH result. Asks "What specific symptom does this PR fix? Does it precisely match this problem, or could it fix a different problem that shares terminology?" Returns `confirmed: true` only when the fix mechanism directly corresponds to the reported symptom. |
-| `post_slack_message`           | `post_slack_message(text: string) -> message_id`                                                                                | Slack: post new message to thread.                                                                                                                                                                                                                                                                          |
-| `update_slack_message`         | `update_slack_message(message_id: string, text: string) -> void`                                                                | Slack: update existing message.                                                                                                                                                                                                                                                                             |
+| Tool                           | Signature                                                                                            | Description                                                                                                                                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `extract_request`              | `extract_request(message: string) -> { sdk, version, problem, links? }`                              | LLM: extract sdk, version, problem, and optional links from support engineer message.                                                                                                                          |
+| `lookup_sdk_repository`        | `lookup_sdk_repository(sdk: string) -> string or null`                                               | Map SDK identifier to `owner/repo` slug. Returns null if unknown.                                                                                                                                              |
+| `resolve_repository_ambiguous` | `resolve_repository_ambiguous(context: string) -> string`                                            | LLM: resolve repository when lookup is ambiguous.                                                                                                                                                              |
+| `get_issue_resolution`         | `get_issue_resolution(issue_url: string) -> { fixed_in_version?, pr_number? }`                       | GitHub API: check if linked issue/PR was fixed and in which release.                                                                                                                                           |
+| `get_releases_from_version`    | `get_releases_from_version(repo: string, from_version: string) -> Release[]`                         | GitHub API: list stable releases strictly after `from_version` (oldest → newest). MUST exclude pre-release versions. SHOULD use server-side filtering where the API supports it; otherwise filter client-side. |
+| `filter_relevant_entries`      | `filter_relevant_entries(release_notes: string, problem: string) -> (release, line, pr_reference)[]` | LLM: identify release note lines relevant to `problem`.                                                                                                                                                        |
+| `get_pr_details`               | `get_pr_details(repo: string, pr_number: int) -> PRDetails`                                          | GitHub API: fetch PR title and description.                                                                                                                                                                    |
+| `score_pr_confidence`          | `score_pr_confidence(pr: PRDetails, problem: string) -> { level: Confidence, reason: string }`       | LLM: assign high/medium/low confidence that PR fixes `problem`, plus a one-sentence explanation of why.                                                                                                        |
+| `fetch_thread_messages`        | `fetch_thread_messages(channel: string, thread_ts: string) -> string`                                | Slack: fetch all messages in a thread via `conversations.replies`. Returns formatted text (e.g. `User: message`) for the full thread. Used for input collection before analysis.                               |
+| `post_slack_message`           | `post_slack_message(text: string) -> message_id`                                                     | Slack: post new message to thread.                                                                                                                                                                             |
+| `update_slack_message`         | `update_slack_message(message_id: string, text: string) -> void`                                     | Slack: update existing message.                                                                                                                                                                                |
 
 ---
 
 ## Design Principles
 
 - **Lazy loading.** The agent MUST only fetch data it actually needs for the current decision. The agent MUST NOT bulk-load data "just in case."
-- **Rich context scoring.** The agent MUST pass both the extracted `problem` summary and the full `issue_description` (the raw Slack thread) to all LLM filtering and scoring calls (`filter_relevant_entries`, `score_pr_confidence`, `verify_pr_match`). The raw thread preserves specific symptoms, error messages, and reproduction details that the extracted summary may lose, reducing false positives in confidence scoring.
-- **Two-step HIGH validation.** A HIGH result from `score_pr_confidence` is treated as a CANDIDATE HIGH. It MUST be confirmed by a second, adversarial `verify_pr_match` call before it becomes a final HIGH. If `verify_pr_match` rejects the match, the result MUST be downgraded to MEDIUM. This extra call runs only when a HIGH candidate is found, so cost impact is minimal.
-- **Early exit.** The agent MUST stop scanning as soon as it has accumulated **3 confirmed HIGH candidates**. The agent MUST NOT process remaining batches once this threshold is reached. If scanning completes with fewer than 3 HIGH candidates, all confirmed HIGHs are still returned as a HIGH result.
+- **Early exit.** The agent MUST stop as soon as it is confident in a result. The agent MUST NOT process remaining candidates after a high-confidence match.
 - **Token efficiency.** The agent MUST minimize the amount of text held in context at any given time. The agent SHOULD prefer compact summaries over raw content. If any single PR description exceeds 20 000 tokens, the agent SHOULD summarize it before scoring.
 - **Repository-first.** The agent MUST resolve which GitHub repository to query before fetching any release data.
 - **Show your work.** The agent MUST output reasoning alongside the answer so the support engineer can verify.
@@ -90,7 +87,7 @@ See [Appendix A](#appendix-a--example-requests) for example requests.
 
 **Tools used:** `lookup_sdk_repository`; MAY use `resolve_repository_ambiguous` for ambiguous cases.
 
-The agent MUST map `sdk` to a GitHub repository **before** any data fetching. When `lookup_sdk_repository` returns null, the agent MUST call `resolve_repository_ambiguous` with the full `issue_description` (the raw thread) as context, so the LLM can use all available signals to resolve the repository.
+The agent MUST map `sdk` to a GitHub repository **before** any data fetching.
 
 | SDK identifier          | Repository                |
 | ----------------------- | ------------------------- |
@@ -114,7 +111,7 @@ This subtask MUST run **before** fetching any release range or release notes. It
 If the request included GitHub `links` (issue or PR URLs):
 
 1. The agent MUST check whether the linked issue/PR was resolved in a release **after** `version` via `get_issue_resolution`.
-2. If yes, the agent MUST fetch the PR details via `get_pr_details` and score its confidence via `score_pr_confidence`, passing both `problem` and `issue_description`.
+2. If yes, the agent MUST fetch the PR details via `get_pr_details` and score its confidence via `score_pr_confidence`.
 3. If the linked issue's fix is in a release **at or before** `version`, the agent MUST discard it — the user already has that version and the problem persists, so this is not the fix.
 4. If `score_pr_confidence` returns **high**, the result is a CANDIDATE HIGH. The agent MUST call `verify_pr_match` to confirm. If `verify_pr_match` returns `confirmed: true`, the agent MUST exit early and proceed to Subtask 6 with a HIGH result. If `verify_pr_match` returns `confirmed: false`, the candidate is discarded and the agent MUST proceed to Subtask 4.
 5. If the link is inconclusive or discarded, the agent MUST proceed to Subtask 4.
@@ -154,15 +151,14 @@ The agent MUST perform a **linear scan** of release notes from oldest to newest.
 
 The agent MUST process releases in batches of at most 5, oldest first:
 
-1. For each batch, pass the combined release notes to `filter_relevant_entries` along with the `problem` and `issue_description`.
+1. For each batch, pass the combined release notes to `filter_relevant_entries` along with the `problem`.
 2. For any relevant entries returned, fetch PR details via `get_pr_details`.
-3. Score each PR via `score_pr_confidence`, passing both `problem` and `issue_description`.
-4. If `score_pr_confidence` returns **high**, the result is a CANDIDATE HIGH. The agent MUST call `verify_pr_match` to confirm. If `verify_pr_match` returns `confirmed: true`, add it to the HIGH accumulator. If `verify_pr_match` returns `confirmed: false`, downgrade the candidate to MEDIUM and add it to the MEDIUM accumulator.
-5. The agent MUST accumulate confirmed high-confidence candidates (up to **3**) and medium-confidence candidates (up to **5**) across batches.
-6. **Early exit:** Once **3 confirmed HIGH candidates** have been accumulated, the agent MUST stop and proceed to Subtask 6. The agent MUST NOT fetch the next batch.
-7. If fewer than 3 HIGH candidates have been found, continue to the next batch.
+3. Score each PR via `score_pr_confidence`.
+4. The agent MUST accumulate all medium-confidence and above candidates across batches.
+5. **Early exit:** If a high-confidence match is found, the agent MUST stop and proceed to Subtask 6. The agent MUST NOT fetch the next batch.
+6. If no high-confidence match is found, continue to the next batch.
 
-After all batches are processed: if any HIGH candidates were found (1–3), return them as the HIGH result. Otherwise, if MEDIUM candidates exist (up to 5), return them. Low-confidence results MUST NOT be treated as candidates — if only low-confidence results exist after scanning all releases, the outcome is "no result."
+After all batches are processed, the accumulated candidate list is the output. Low-confidence results MUST NOT be treated as candidates — if only low-confidence results exist after scanning all releases, the outcome is "no result."
 
 ### Confidence levels
 
@@ -210,9 +206,7 @@ The agent MUST format and post the result according to the confidence level.
 
 ### High confidence
 
-The agent MUST report the fix version(s) with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability. The agent MUST include a `Confidence: **High**` line followed by the reason on the same line after the main finding.
-
-**Single HIGH candidate:**
+The agent MUST report the fix version with supporting evidence. Output MUST use Slack markdown: links as `[PR #N](url)`, version in **bold**, and an optional checkmark (✓) for scanability. The agent MUST include a `Confidence: **High**` line followed by the reason on the same line after the main finding.
 
 ```
 ✓ This was fixed in **v<version>**. See [PR #N](url).
@@ -223,40 +217,13 @@ Checked: releases <first>–<last> in <repo>.
 [View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
 
-**Multiple HIGH candidates (2–3):**
-
-```
-✓ High-confidence fix candidates:
-
-1. **v<version1>** — [PR #N1](url)
-2. **v<version2>** — [PR #N2](url)
-3. **v<version3>** — [PR #N3](url)
-
-Confidence: **High** — <reason from first candidate>
-
-Checked: releases <first>–<last> in <repo>.
-
-[View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
-```
-
-`<first>`–`<last>` MUST reflect the **actual** range scanned. When the agent exits early after accumulating 3 HIGH candidates, `<last>` is the version of the last HIGH candidate found. "Relevant PRs evaluated" is shown only when **more than one** PR was evaluated; omit it when there is a single PR.
-
-### Maintainer pinging
-
-Whenever the agent defers to SDK maintainers (medium confidence, no result, too old, already on
-latest, fetch failed), it MUST look up the Slack user group for the resolved repository using the
-mapping in `src/analysis/maintainers.ts` and append the mention(s) to the deferral sentence. If
-no entry exists for the repository, no mention is added.
+`<first>`–`<last>` MUST reflect the **actual** range scanned. When the agent exits early after finding a high-confidence fix, `<last>` is the version where the fix was found, not the latest release in the fetched range. "Relevant PRs evaluated" is shown only when **more than one** PR was evaluated; omit it when there is a single PR.
 
 ### Medium confidence (fallback when no high-confidence match)
 
-When no high-confidence PR is found but at least one medium-confidence candidate exists, the agent
-MUST report the **top 5** medium-confidence releases or PRs as potential candidates. This fallback
-helps when WIF is unsure.
+When no high-confidence PR is found but at least one medium-confidence candidate exists, the agent MUST report the **top 3** medium-confidence releases or PRs as potential candidates. This fallback helps when WIF is unsure.
 
-The agent MUST list up to 5 candidates (oldest first, as encountered during the scan). Use **bold**
-for versions and `[PR #N](url)` for links. The agent MUST include a `Confidence: **Medium**` line
-followed by the reason (from the first candidate) on the same line after the main finding.
+The agent MUST list up to 3 candidates (oldest first, as encountered during the scan). Use **bold** for versions and `[PR #N](url)` for links. The agent MUST include a `Confidence: **Medium**` line followed by the reason (from the best candidate) on the same line after the main finding.
 
 ```
 I'm not fully certain, but here are potential candidates:
@@ -264,10 +231,8 @@ I'm not fully certain, but here are potential candidates:
 1. **v<version1>** — [PR #N1](url)
 2. **v<version2>** — [PR #N2](url)
 3. **v<version3>** — [PR #N3](url)
-4. **v<version4>** — [PR #N4](url)
-5. **v<version5>** — [PR #N5](url)
 
-Deferring to SDK maintainers to confirm. @<group>
+Deferring to SDK maintainers to confirm.
 Confidence: **Medium** — <reason>
 
 Checked: releases <first>–<last> in <repo>.
@@ -275,8 +240,7 @@ Checked: releases <first>–<last> in <repo>.
 [View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
 
-If fewer than 5 candidates exist, list only those found. "Relevant PRs evaluated" is shown only
-when more than one PR was evaluated.
+If fewer than 3 candidates exist, list only those found. "Relevant PRs evaluated" is shown only when more than one PR was evaluated.
 
 ### No result
 
@@ -284,7 +248,7 @@ The agent MUST defer entirely. "Checked" uses the full range scanned (all releas
 
 ```
 I wasn't able to identify a fix in the releases after v<version>.
-Deferring to SDK maintainers for investigation. @<group>
+Deferring to SDK maintainers for investigation.
 
 Checked: releases <first>–<last> in <repo>.
 Release notes reviewed: <count>.
@@ -299,7 +263,7 @@ The agent MUST report that the version is too far behind:
 ```
 The reported version (v<version>) is more than 100 releases behind
 the latest stable release. Unable to look this up efficiently.
-Deferring to SDK maintainers. @<group>
+Deferring to SDK maintainers.
 
 [View Sentry trace](https://sentry-sdks.sentry.io/explore/traces/trace/<traceId>)
 ```
