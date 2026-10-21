@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -22,7 +22,7 @@ RUN --mount=type=secret,id=sentryclirc,target=/root/.sentryclirc \
     pnpm run build
 
 # Production stage
-FROM node:20-alpine
+FROM node:24-alpine
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
